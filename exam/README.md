@@ -30,7 +30,7 @@ Each question incorporates **two or more** of the following advanced elements:
 | 3 | Claude Code の設定とワークフロー / Claude Code Configuration and Workflows | 20% | [`domain3_claude_code_workflows.md`](./domain3_claude_code_workflows.md) |
 | 4 | プロンプトエンジニアリングと構造化出力 / Prompt Engineering and Structured Output | 20% | [`domain4_prompt_structured_output.md`](./domain4_prompt_structured_output.md) |
 | 5 | コンテキスト管理と信頼性 / Context Management and Reliability | 15% | [`domain5_context_reliability.md`](./domain5_context_reliability.md) |
-| **計 / Total** | | **100%** | 25 問 / questions |
+| **計 / Total** | | **100%** | 150 問 / questions |
 
 ## 形式 / Format
 
@@ -44,7 +44,7 @@ Each question incorporates **two or more** of the following advanced elements:
 2. 各問の `<details>` を開く前に自分の回答を決める
 3. 解説を読んで誤答パターンを確認する
 4. ガイド本編 (`../guide_ja.md` / `../guide_en.MD`) の参照節に戻って深掘り
-5. 8 割（25 問中 20 問）正解できれば本番試験で安定して合格圏
+5. 8 割（30 問中 24 問）以上を各ドメインで正解できれば、上級レベルとして安定的な実力
 
 Recommended approach:
 
@@ -52,7 +52,7 @@ Recommended approach:
 2. Decide your answer before opening the `<details>` block
 3. Review the explanations including why each distractor is wrong
 4. Return to the relevant section of the main guide (`../guide_ja.md` / `../guide_en.MD`) for deeper study
-5. Scoring 80% (20/25) reliably indicates readiness for the official exam
+5. Scoring ≥80% per domain (24/30) consistently indicates solid advanced-level proficiency
 
 ## 注意 / Disclaimer
 

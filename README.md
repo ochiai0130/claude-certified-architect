@@ -42,7 +42,7 @@ This repository contains study materials for the **Claude Certified Architect â€
 
 ## Advanced Mock Exam (Beyond Foundations)
 
-For engineers deploying Claude in **business-critical domains** (finance, healthcare, legal, regulated industries), the [`exam/`](./exam/) directory provides an **advanced-level** mock exam organized by the official five domains, with 5 scenario-based questions per domain (25 total). Each question is bilingual (Japanese / English) and includes detailed explanations.
+For engineers deploying Claude in **business-critical domains** (finance, healthcare, legal, regulated industries), the [`exam/`](./exam/) directory provides an **advanced-level** mock exam organized by the official five domains, with 30 scenario-based questions per domain (150 total). Each question is bilingual (Japanese / English) and includes detailed explanations.
 
 - Index: [`exam/README.md`](./exam/README.md)
 
