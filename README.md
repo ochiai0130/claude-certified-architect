@@ -40,6 +40,12 @@ This repository contains study materials for the **Claude Certified Architect â€
 - Work through the scenarios and questions.
 - Use the **Practical Exercises** section to rehearse key patterns (tool design, MCP integration, structured output, context management, and reliability).
 
+## Advanced Mock Exam (Beyond Foundations)
+
+For engineers deploying Claude in **business-critical domains** (finance, healthcare, legal, regulated industries), the [`exam/`](./exam/) directory provides an **advanced-level** mock exam organized by the official five domains, with 5 scenario-based questions per domain (25 total). Each question is bilingual (Japanese / English) and includes detailed explanations.
+
+- Index: [`exam/README.md`](./exam/README.md)
+
 ## Free Anthropic Courses
 
 13 free courses & certificates from Anthropic Academy:
