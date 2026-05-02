@@ -1098,4 +1098,704 @@ Eval = **representative + edge + expected + grading rules + comparison**. 10K is
 
 ---
 
+## 問題 31 / Question 31
+
+**シナリオ / Scenario:**
+
+投資銀行の **取引確認書（trade confirmation）** から構造化抽出。SWIFT メッセージ + PDF + 自由形式メールが混在し、約定日・受渡日・金額・通貨・カウンターパーティ・取引種別を抽出する必要があります。
+
+An investment bank extracts structured data from trade confirmations (SWIFT messages + PDFs + free-form emails): trade date, settlement date, amount, currency, counterparty, instrument type.
+
+**設問 / Question:**
+
+最も適切な抽出設計はどれですか？ / Best extraction design?
+
+- A) **入力種別ごとに専用プロンプト + 統一スキーマ**：(i) SWIFT 用（タグ構造を活用）、PDF 用（OCR + テーブル抽出）、メール用（自由文 NER）の **3 種別プロンプト**、(ii) すべて同じ JSON Schema へ正規化（ISO 通貨・ISO 8601 日付・LEI でカウンターパーティ）、(iii) 取引種別は **enum 強制**（FX_SPOT, FX_FORWARD, IRS, CDS, ...）、(iv) **意味検証層**：受渡日 ≥ 約定日、金額正、LEI と既存マスタ一致、(v) 矛盾は構造化エラー + 人間レビューエスカレーション / **Per-input-type prompts + unified schema**: (i) 3 prompts (SWIFT tag-aware / PDF OCR + table / email free-text NER), (ii) all normalize into the same JSON Schema (ISO currency / ISO 8601 / LEI for counterparty), (iii) instrument type **enum-forced** (FX_SPOT, FX_FORWARD, IRS, CDS, ...), (iv) **semantic validation**: settlement ≥ trade, positive amount, LEI matches master, (v) conflicts → structured error + human escalation
+- B) すべて 1 つのプロンプトで処理 / One prompt for all
+- C) 抽出は手動 / Manual extraction
+- D) フリーテキストで返す / Return free text
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+取引確認書抽出は **入力種別最適化 + 統一スキーマ + enum + 意味検証 + エスカレーション**。
+
+Trade confirmation extraction = **per-input optimization + unified schema + enums + semantic validation + escalation**.
+
+- **B 不正解**: 種別差で精度低下。 / Drift on differences.
+- **C 不正解**: スケールしない。 / Doesn't scale.
+- **D 不正解**: 下流処理破綻。 / Breaks downstream.
+
+**参照 / Reference:** Trade extraction・LEI・ISO standards
+</details>
+
+---
+
+## 問題 32 / Question 32
+
+**シナリオ / Scenario:**
+
+ヘッジファンドで **SEC 提出書類（10-K, 10-Q, 8-K）** から **アルファシグナル**になり得る情報を抽出。「Risk Factors」「MD&A」「Subsequent Events」などのセクション別に異なる視点が必要。
+
+A hedge fund extracts **alpha signals** from SEC filings (10-K, 10-Q, 8-K). Each section (Risk Factors, MD&A, Subsequent Events) needs a different lens.
+
+**設問 / Question:**
+
+最も適切な抽出設計はどれですか？ / Best extraction design?
+
+- A) **セクション別専用プロンプト + メタ統合**：(i) Risk Factors → 新規リスクの差分検出（前期比）、(ii) MD&A → 経営者の見方の **トーン分析（強気 / 中立 / 弱気）+ 数値ガイダンス抽出**、(iii) Subsequent Events → 開示日と影響度の構造化、(iv) **Citations API** で原文出所を必ず付与（hallucination 防止）、(v) すべてのシグナルを統合し、戦略チーム別の **多面的アルファレポート**を生成 / **Section-specific prompts + meta-merge**: (i) Risk Factors → diff-against-prior-period for new risks, (ii) MD&A → **tone analysis (bullish/neutral/bearish) + numeric guidance extraction**, (iii) Subsequent Events → disclosure-date + impact-grade structure, (iv) **Citations API** mandatory (anti-hallucination), (v) merge all into a strategy-team-specific **multi-perspective alpha report**
+- B) 全セクション同じプロンプト / Same prompt everywhere
+- C) ランダムにセクション選択 / Random section selection
+- D) 手動分析 / Manual
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+SEC 提出書類は **セクション別最適化 + Citations + メタ統合**で価値創出。
+
+SEC filings = **section-specific optimization + Citations + meta-merge**.
+
+- **B 不正解**: セクション特性無視で精度低下。 / Drifts.
+- **C 不正解**: 体系性ゼロ。 / Unsystematic.
+- **D 不正解**: 規模で不可能。 / Doesn't scale.
+
+**参照 / Reference:** Filings extraction・Citations
+</details>
+
+---
+
+## 問題 33 / Question 33
+
+**シナリオ / Scenario:**
+
+銀行の **AML SAR（Suspicious Activity Report）** ナラティブを Claude が起草。**SAR ナラティブには規制当局の期待形式**があり、不適切なフォーマットや情報不足は再提出指示につながります。
+
+A bank's AML SAR narrative is drafted by Claude. **Regulators expect a specific format**; deficient narratives trigger refile orders.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **テンプレ + 必須要素チェッカ**：(i) SAR テンプレ（Who / What / When / Where / Why / How）に厳密に従う、(ii) 必須要素（取引パターン・関係者・地理 / 時間・疑わしい根拠・既往報告との関連）を **JSON Schema で必須化**、(iii) **過去の検査官指摘事項**を Few-shot で組み込む、(iv) 完成後に **検査官観点レビュー**を別プロンプトで実施（unclear timeline / vague rationale を検出）、(v) AML オフィサーの最終承認後に提出 / **Template + required-element checker**: (i) strictly follow the SAR template (Who / What / When / Where / Why / How), (ii) require elements (tx pattern / parties / geo + time / suspicion grounds / linkage to prior reports) **via JSON Schema**, (iii) embed **past examiner findings** as few-shot, (iv) after drafting, run an **examiner-perspective review** prompt (detect unclear timeline / vague rationale), (v) AML officer signs off before submission
+- B) 自由文で起草 / Free-form drafting
+- C) Claude に任せて即提出 / Submit Claude's draft directly
+- D) ナラティブは省略 / Skip narrative
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+SAR ナラティブは **テンプレ厳守 + 必須要素 + 過去指摘 Few-shot + 検査官観点レビュー + 承認**。
+
+SAR narratives = **strict template + required elements + past-finding few-shot + examiner-view review + sign-off**.
+
+- **B 不正解**: 再提出リスク高。 / High refile risk.
+- **C 不正解**: 規制違反リスク。 / Compliance risk.
+- **D 不正解**: 違反。 / Breach.
+
+**参照 / Reference:** SAR narrative best practices
+</details>
+
+---
+
+## 問題 34 / Question 34
+
+**シナリオ / Scenario:**
+
+保険会社の **目論見書（prospectus）解析**で、リスク要因・運用方針・手数料体系などの構造化抽出。**SEC Form N-1A** のような厳格なフォーマット規定がある書類を処理。
+
+An insurer parses prospectuses (e.g., SEC Form N-1A) for risk factors / objectives / fees with strict format rules.
+
+**設問 / Question:**
+
+最も適切な処理はどれですか？ / Best handling?
+
+- A) **規定フォーマット駆動の抽出**：(i) Form N-1A のセクション構造をスキーマ化（Item 4 リスク・Item 5 手数料・Item 6 運用方針）、(ii) **PDF を直接 API に投入**（Claude のドキュメント機能）、(iii) `tool_use` で **セクション ID 付き構造化抽出**、(iv) 数値（手数料率・最小投資額）は **enum / number 制約 + 単位明示**、(v) 抽出結果は **金融データ用語辞典**との照合で標準化 / **Form-driven extraction**: (i) schema mirrors Form N-1A items (Risk = Item 4, Fees = Item 5, Strategy = Item 6), (ii) **PDF goes directly to API** (Claude document feature), (iii) `tool_use` returns **structured extraction with section IDs**, (iv) numerics (fees / minimums) under **enum / number constraints + unit-explicit**, (v) reconcile with a **financial-term dictionary**
+- B) PDF をテキスト変換して自由抽出 / Convert PDF + free extract
+- C) 手動入力 / Manual entry
+- D) 抽出は不要 / Skip extraction
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+規制書類は **フォームスキーマ駆動 + 直接 PDF + 構造化 + 単位明示 + 辞書照合**。
+
+Regulatory docs = **form-schema-driven + direct PDF + structured + units + dictionary**.
+
+- **B 不正解**: 構造情報喪失。 / Loses structure.
+- **C 不正解**: スケールしない。 / Doesn't scale.
+- **D 不正解**: 価値喪失。 / Loses value.
+
+**参照 / Reference:** Form-driven extraction・direct PDF
+</details>
+
+---
+
+## 問題 35 / Question 35
+
+**シナリオ / Scenario:**
+
+カード決済プラットフォームで、**チャージバック（chargeback）** 申し立て理由を構造化分類。Visa / Mastercard の **reason code 分類体系**は数百種類あり、カテゴリにより必要なエビデンスが異なります。
+
+A card-payment platform classifies chargeback reasons. Visa / Mastercard reason codes number in the hundreds; required evidence varies by category.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **階層的分類 + エビデンス要件マッピング**：(i) 大分類（fraudulent / authorization / processing error / consumer dispute）→ サブ分類（reason code）の 2 段階、(ii) 各 reason code は **enum で確定**、(iii) 結果に応じて **必要エビデンスの構造化リスト**を返す（領収書 / 配送追跡 / 顧客同意ログ等）、(iv) 不確かな場合は `confidence + top_3_candidates` を返す、(v) 分類は **過去 6 ヶ月の判定結果と検査結果のフィードバックループ**で継続改善 / **Hierarchical + evidence requirements**: (i) major category (fraudulent / authorization / processing error / consumer dispute) → reason code (2 stages), (ii) reason codes are **enum-forced**, (iii) return a **structured list of required evidence** (receipt / shipping / consumer-consent log) per outcome, (iv) on uncertainty return `confidence + top_3_candidates`, (v) continuous improvement via a **6-month outcome feedback loop**
+- B) 自由文分類 / Free-text classification
+- C) 1 つの分類だけ / Single class only
+- D) 分類しない / Skip classification
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+チャージバック分類は **階層 + enum + エビデンス要件 + 不確実性 + フィードバックループ**。
+
+Chargeback classification = **hierarchical + enum + evidence map + uncertainty + feedback loop**.
+
+- **B 不正解**: 集計不能。 / Not aggregatable.
+- **C 不正解**: 業務不能。 / Insufficient.
+- **D 不正解**: 異議申立放置。 / Disputes unhandled.
+
+**参照 / Reference:** Chargeback reason codes
+</details>
+
+---
+
+## 問題 36 / Question 36
+
+**シナリオ / Scenario:**
+
+医療機関の **臨床ノート（progress note）** から構造化情報を抽出。SNOMED CT / ICD-10 / RxNorm の標準コードへのマッピングが必要で、医療用語は **同義語が多い**（"MI" vs "myocardial infarction" vs "heart attack"）。
+
+A clinic extracts structured info from progress notes; map to SNOMED CT / ICD-10 / RxNorm. Medical terms have **many synonyms** ("MI" / "myocardial infarction" / "heart attack").
+
+**設問 / Question:**
+
+最も適切な抽出設計はどれですか？ / Best extraction design?
+
+- A) **オントロジー対応抽出**：(i) `tool_use` でフリーテキスト → SNOMED CT / ICD-10 / RxNorm の **正規 ID** 抽出、(ii) `enum` で各オントロジーの正規 ID を制約、(iii) 同義語処理は **オントロジー辞書（UMLS など）と照合**、(iv) 不確実な場合は **top_k 候補 + confidence** を返す、(v) 否定形（"no chest pain"）と推測（"likely MI"）を **negation/uncertainty タグ**で区別、(vi) 抽出結果と原文の **claim → location マッピング**を保持 / **Ontology-aware extraction**: (i) `tool_use` maps free text → canonical SNOMED CT / ICD-10 / RxNorm IDs, (ii) `enum` constrains canonical IDs per ontology, (iii) reconcile synonyms via UMLS-style dictionary, (iv) on uncertainty return **top-k + confidence**, (v) tag negation / uncertainty ("no chest pain", "likely MI"), (vi) preserve **claim → location mapping** to source text
+- B) 自由文記述 / Free text only
+- C) 同義語は無視 / Ignore synonyms
+- D) 1 つのオントロジーのみ / Use only one ontology
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+臨床抽出は **オントロジー + enum + 同義語照合 + top_k + 否定 / 推測タグ + 出所保持**。
+
+Clinical extraction = **ontology + enum + synonym reconciliation + top-k + negation/uncertainty tags + provenance**.
+
+- **B 不正解**: 下流解析不能。 / Not analyzable.
+- **C 不正解**: 精度低下。 / Drifts.
+- **D 不正解**: 多面的情報喪失。 / Loses multi-axis info.
+
+**参照 / Reference:** Clinical NER・SNOMED CT・negation
+</details>
+
+---
+
+## 問題 37 / Question 37
+
+**シナリオ / Scenario:**
+
+放射線科で、**CT / MRI 画像レポート** を構造化。所見・部位・重症度・推奨追加検査を JSON にし、放射線科医のレビュー時間を短縮します。
+
+Radiology structures CT / MRI reports: findings / region / severity / recommended follow-ups in JSON to cut review time.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **マルチモーダル + 構造化スキーマ**：(i) Claude のマルチモーダル機能で画像 + レポートテキストを同時投入、(ii) 構造化スキーマは部位（解剖学標準コード AAA）・所見（RadLex 用語）・重症度（5 段階 enum）・サイズ（mm）・推奨追加検査（enum）、(iii) **不確実性表現必須**（"likely" / "probably" / "consistent with"）、(iv) 緊急所見（acute hemorrhage 等）は **`urgent_finding: true` フラグ + 即時 PreToolUse エスカレーション**、(v) 放射線科医が最終確定 / **Multimodal + structured schema**: (i) Claude multimodal ingests image + report, (ii) schema = anatomy (AAA codes) / findings (RadLex) / severity (5-level enum) / size (mm) / follow-up (enum), (iii) **uncertainty mandatory** ("likely" / "probably" / "consistent with"), (iv) urgent findings (acute hemorrhage) flagged `urgent_finding: true` + immediate `PreToolUse` escalation, (v) radiologist finalizes
+- B) テキストのみで処理 / Text-only
+- C) 画像は読まずタイトルだけ / Read only the title
+- D) 自由文記述で十分 / Free text suffices
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+放射線レポートは **マルチモーダル + 標準オントロジー + 重症度 enum + 不確実性 + 緊急エスカレーション + 放射線科医確定**。
+
+Radiology = **multimodal + standard ontologies + severity enum + uncertainty + urgent escalation + radiologist sign-off**.
+
+- **B 不正解**: 画像情報を捨てる。 / Loses imaging info.
+- **C 不正解**: 大半の情報損失。 / Loses most info.
+- **D 不正解**: 集計不能。 / Not aggregatable.
+
+**参照 / Reference:** Radiology report structuring
+</details>
+
+---
+
+## 問題 38 / Question 38
+
+**シナリオ / Scenario:**
+
+保険会社で、**有害事象報告（adverse drug event, ADE）** を医療記録から検出。**MedDRA**（Medical Dictionary for Regulatory Activities）の標準用語にマッピングし、規制当局へ報告。
+
+An insurer detects **adverse drug events (ADEs)** in records and maps to **MedDRA**, reporting to regulators.
+
+**設問 / Question:**
+
+最も適切な抽出設計はどれですか？ / Best extraction design?
+
+- A) **MedDRA + 因果関係評価**：(i) 検出された有害事象を **MedDRA Preferred Term** にマッピング（`enum` 制約）、(ii) 重症度を **MedDRA SMQ** で分類、(iii) **薬剤との因果関係評価**（WHO-UMC scale: certain / probable / possible / unlikely / conditional / unassessable）、(iv) Citations で原文の言及位置、(v) 重大有害事象（SAE）は `severity: "serious"` フラグ + **24 時間以内の規制報告**を `PreToolUse` フックでトリガ / **MedDRA + causality**: (i) map to **MedDRA Preferred Term** (`enum`-forced), (ii) severity via **MedDRA SMQ**, (iii) **causality assessment** (WHO-UMC scale: certain / probable / possible / unlikely / conditional / unassessable), (iv) Citations for source spans, (v) SAEs flagged `severity: "serious"` + `PreToolUse` trigger for **24-hour regulatory reporting**
+- B) 自由文記述 / Free text
+- C) 検出は不要 / No detection
+- D) 簡易 OK / NG 分類 / Binary OK/NG
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+ADE 検出は **MedDRA + 因果関係 + 出所 + 重大事象トリガ**で薬剤監視義務を満たす。
+
+ADE detection = **MedDRA + causality + provenance + SAE trigger** to fulfill pharmacovigilance.
+
+- **B 不正解**: 規制報告不可。 / Can't report.
+- **C 不正解**: 監督義務違反。 / Compliance breach.
+- **D 不正解**: 規制要件不満。 / Insufficient detail.
+
+**参照 / Reference:** Pharmacovigilance・MedDRA
+</details>
+
+---
+
+## 問題 39 / Question 39
+
+**シナリオ / Scenario:**
+
+製薬企業の **規制提出書類**（IND, NDA, BLA）作成支援。**eCTD（electronic Common Technical Document）** フォーマット必須で、各国 FDA / EMA / PMDA で要求形式が微妙に異なります。
+
+A pharma drafts regulatory submissions (IND / NDA / BLA) in **eCTD** format; each agency (FDA / EMA / PMDA) has slightly different requirements.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **当局別プロンプト + eCTD 構造**：(i) FDA / EMA / PMDA それぞれに最適化された **当局別プロンプト**（用語・参照規則・形式が異なる）、(ii) eCTD のセクション構造を **JSON Schema で表現**（Module 1〜5）、(iii) 各セクションの必須項目を **enum / required で強制**、(iv) **過去当局指摘事項**を Few-shot として組み込み、(v) 完成後 **規制対応専門家がレビュー**、(vi) 当局別の差分は **ローカリゼーション層**で吸収 / **Per-agency prompts + eCTD structure**: (i) FDA / EMA / PMDA-tuned prompts, (ii) JSON Schema models eCTD modules 1–5, (iii) required items enforced via `enum / required`, (iv) **past agency findings** embedded as few-shot, (v) regulatory experts review, (vi) cross-agency differences absorbed in a **localization layer**
+- B) 1 当局向けに作って他は流用 / Build for one + reuse
+- C) すべて同じ自由文 / Same free text
+- D) eCTD は使わない / Skip eCTD
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+規制提出書類は **当局別プロンプト + eCTD スキーマ + 過去指摘 Few-shot + 専門家レビュー + ローカリゼーション**。
+
+Submissions = **per-agency prompts + eCTD schema + past-finding few-shot + expert review + localization**.
+
+- **B 不正解**: 当局差で却下リスク。 / Rejection risk.
+- **C 不正解**: 規制不適合。 / Non-compliant.
+- **D 不正解**: 業界標準違反。 / Violates standard.
+
+**参照 / Reference:** eCTD・regulatory submissions
+</details>
+
+---
+
+## 問題 40 / Question 40
+
+**シナリオ / Scenario:**
+
+医療画像 AI 製品の **ラベル監視（label monitoring）** で、Claude が論文 / 学会発表から **新しい安全性情報**を継続的に抽出。FDA への **PMR（Postmarket Requirement）** 報告に活用。
+
+A medical imaging AI continuously mines papers / conferences for new safety info via Claude, feeding **FDA PMR (Postmarket Requirement)** reports.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **継続監視 + 構造化 + 影響評価**：(i) 学術 DB / 学会の RSS を **MCP subscription** で監視、(ii) 新規安全性シグナル（false negative パターン・特定患者群での性能低下等）を `tool_use` で構造化抽出、(iii) **既存ラベルとの差分**を計算して PMR 報告該当性を判定、(iv) 規制対応チームへの **構造化エスカレーション**（信号 / 証拠 / 推奨アクション / 規制期限）、(v) すべての監視ログは WORM 保管 / **Continuous monitoring + structured + impact**: (i) academic / conference RSS via **MCP subscription**, (ii) extract new safety signals (FN patterns / cohort performance drops) as `tool_use` structured output, (iii) compute **diff vs existing label** to determine PMR relevance, (iv) **structured escalation** to regulatory (signal / evidence / recommended action / regulatory deadline), (v) WORM-log all
+- B) 月 1 回手動チェック / Monthly manual check
+- C) 監視は不要 / No monitoring
+- D) 規制報告は他部門 / Someone else's job
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+PMR は **継続監視 + 構造化 + 差分評価 + 構造化エスカレーション + WORM**。
+
+PMR = **continuous monitoring + structured + diff assessment + structured escalation + WORM**.
+
+- **B 不正解**: タイムリー性ゼロ。 / Untimely.
+- **C 不正解**: 規制不適合。 / Non-compliant.
+- **D 不正解**: 責任放棄。 / Responsibility abdicated.
+
+**参照 / Reference:** FDA PMR・post-market surveillance
+</details>
+
+---
+
+## 問題 41 / Question 41
+
+**シナリオ / Scenario:**
+
+法律事務所で、契約書の **条項分類**を自動化。NDA / 売買契約 / ライセンス契約 / 雇用契約など条項タイプを精度よく識別する必要があります。
+
+A law firm classifies contract clauses (NDA / purchase / license / employment).
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **階層分類 + 信頼度 + 法的影響度**：(i) 大分類（payment / liability / IP / termination / governing law / etc.）→ サブ分類（payment_schedule / late_fee / etc.）の 2 段階、(ii) `enum` で全分類を制約、(iii) **法的影響度スコア**（high / medium / low）を別フィールド、(iv) 不確実時は `top_3_candidates`、(v) 弁護士のフィードバックループで分類体系を継続改善 / **Hierarchical + confidence + legal-impact**: (i) major class (payment / liability / IP / termination / governing law / ...) → sub-class (payment_schedule / late_fee / ...), (ii) `enum`-bounded, (iii) separate **legal-impact score** (high / medium / low), (iv) on uncertainty `top_3_candidates`, (v) continuous improvement via attorney feedback loop
+- B) 単一分類のみ / Single class only
+- C) 自由文記述 / Free text
+- D) 分類しない / Skip
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+契約条項分類は **階層 enum + 影響度 + top_k + フィードバック改善**。
+
+Clause classification = **hierarchical enum + impact + top-k + feedback loop**.
+
+- **B 不正解**: 粒度不足。 / Insufficient granularity.
+- **C 不正解**: 集計不能。 / Not aggregatable.
+- **D 不正解**: 業務不能。 / Inadequate.
+
+**参照 / Reference:** Legal NLP classification
+</details>
+
+---
+
+## 問題 42 / Question 42
+
+**シナリオ / Scenario:**
+
+法廷向け **証拠タイムライン**を自由文の証言・メール・ログから自動構築。日付 / 時刻の精度と矛盾検出が肝心です。
+
+A litigation timeline is built from testimony / email / logs; date precision + conflict detection are critical.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **時刻精度ラベル + 矛盾検出**：(i) ISO 8601 + **精度ラベル**（`precision: enum["second","minute","hour","day","week","month","year","approximate"]`）、(ii) 出所（email / testimony / log file）と原文の **claim → source 紐付け**、(iii) 同じイベントの複数言及で **時刻矛盾を自動検出**してフラグ、(iv) **タイムゾーン明示**（UTC + ローカル）、(v) 不確実な日付は `confidence + alternative_dates[]`、(vi) 弁護士向けに **可視化用構造化データ**を出力 / **Precision labels + conflict detection**: (i) ISO 8601 + `precision: enum["second","minute","hour","day","week","month","year","approximate"]`, (ii) **claim → source mapping** (email / testimony / log) with verbatim, (iii) auto-detect **conflicting timestamps** for the same event, (iv) **explicit timezone** (UTC + local), (v) uncertain dates → `confidence + alternative_dates[]`, (vi) export **structured visualization data** for attorneys
+- B) すべて文字列で日付 / Dates as strings
+- C) タイムゾーン無視 / Ignore timezone
+- D) 矛盾は無視 / Ignore conflicts
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+法廷タイムラインは **精度ラベル + 出所 + 矛盾検出 + タイムゾーン + 信頼度**で訴訟価値を作る。
+
+Litigation timelines = **precision + provenance + conflict detection + timezone + confidence**.
+
+- **B 不正解**: 解析不能。 / Not analyzable.
+- **C 不正解**: 致命的な誤解生成。 / Misleading.
+- **D 不正解**: 矛盾を見逃すと不利。 / Loses leverage.
+
+**参照 / Reference:** Litigation timeline・evidence
+</details>
+
+---
+
+## 問題 43 / Question 43
+
+**シナリオ / Scenario:**
+
+特許明細書から **クレーム（claims）解析**。Claim の独立 / 従属関係、要素分解（element-by-element）、先行技術との対比表（claim chart）を構造化出力します。
+
+A patent practice extracts **claim analysis**: independent vs dependent, element-by-element decomposition, prior-art claim chart.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **構造化クレーム抽出 + claim chart**：(i) 各 claim を `{ claim_number, type: "independent" | "dependent", parent_claim_number?, elements: [{element_id, text, ...}], dependencies }` で抽出、(ii) **要素単位**で先行技術とのマッピング（`prior_art_match: { reference, location, exact_match | implicit_match | not_disclosed }`）、(iii) **法的判定**（特許性 / 進歩性）は弁理士が下す（LLM は補助）、(iv) 出力は **PDF claim chart テンプレ**にもエクスポート可能 / **Structured claim extraction + claim chart**: (i) each claim as `{ claim_number, type: "independent"|"dependent", parent_claim_number?, elements: [{element_id, text, ...}], dependencies }`, (ii) **element-level** prior-art mapping (`prior_art_match: { reference, location, exact_match | implicit_match | not_disclosed }`), (iii) **legal determinations** (patentability / inventive step) = patent attorney (LLM assists), (iv) export to **PDF claim chart**
+- B) 自由文記述 / Free text
+- C) 弁理士の判定を Claude が下す / Claude decides patentability
+- D) Claim 解析は不要 / Skip claim analysis
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+クレーム解析は **構造化 + 要素マッピング + claim chart + 弁理士判断**。
+
+Claim analysis = **structured + element mapping + claim chart + attorney judgment**.
+
+- **B 不正解**: claim chart 作成不能。 / Can't build claim chart.
+- **C 不正解**: 弁理士業法違反。 / UPL.
+- **D 不正解**: 業務不能。 / Insufficient.
+
+**参照 / Reference:** Patent claim analysis
+</details>
+
+---
+
+## 問題 44 / Question 44
+
+**シナリオ / Scenario:**
+
+法務文書の **redline 自動生成**。提案版（draft）と参照版（reference）の差分を **法的に意味のある粒度**で出力。
+
+Auto-generate **redlines** between draft and reference at **legally meaningful granularity**.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **多粒度 diff**：(i) 文字レベル（typo）、(ii) 単語レベル（用語変更）、(iii) フレーズレベル（限定責任の上限変更）、(iv) 条項レベル（新条項追加 / 削除）、(v) 法的影響度（critical / significant / minor / cosmetic）、(vi) **意味同等性チェック**（語順変更で意味同じ → minor）、(vii) すべての変更に弁護士コメント欄、(viii) 最終確認は弁護士 / **Multi-granularity diff**: (i) char (typo), (ii) word (term change), (iii) phrase (cap change in liability), (iv) clause (add/remove), (v) legal-impact (critical/significant/minor/cosmetic), (vi) **semantic-equivalence check** (reordering → minor), (vii) attorney-comment slots per change, (viii) attorney finalizes
+- B) 単純な行単位 diff / Simple line diff
+- C) Claude が法的判断 / Claude decides legality
+- D) Diff は不要 / Skip diff
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+redline は **多粒度 + 影響度 + 意味同等性 + 弁護士確認**で実用化。
+
+Redlines = **multi-granularity + impact + semantic equivalence + attorney review**.
+
+- **B 不正解**: 意味的差分が見えない。 / Misses semantic diffs.
+- **C 不正解**: UPL。 / UPL.
+- **D 不正解**: 業務不能。 / Insufficient.
+
+**参照 / Reference:** Legal redlining
+</details>
+
+---
+
+## 問題 45 / Question 45
+
+**シナリオ / Scenario:**
+
+法務 GRC で、**ポリシー文書の整合性チェック**。社内ポリシー間 / ポリシーと規制間の **矛盾や穴**を検出します。
+
+GRC checks **consistency** across internal policies and against external regulations, surfacing **conflicts / gaps**.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **構造化ナレッジグラフ + 矛盾推論**：(i) すべてのポリシー条項を `{ policy_id, clause_id, statement, scope, exceptions[] }` で構造化、(ii) 規制要件も同様に構造化、(iii) `tool_use` で **論理的矛盾**（A は禁止、B は強制で重複対象）と **カバレッジギャップ**（規制要件に対応するポリシー条項なし）を検出、(iv) 矛盾は **claim → source** で原文紐付け、(v) GRC 担当者が解決方針を決定 / **Structured knowledge graph + conflict reasoning**: (i) all policy clauses as `{ policy_id, clause_id, statement, scope, exceptions[] }`, (ii) regulatory requirements similarly, (iii) `tool_use` detects **logical conflicts** (A forbids, B requires for overlapping scope) and **coverage gaps** (regulatory requirement with no corresponding policy), (iv) conflicts come with **claim → source**, (v) GRC owners decide resolution
+- B) 自由文で読み比べ / Read free-form
+- C) Claude に解決まで任せる / Have Claude resolve
+- D) 整合性チェックは不要 / Skip checks
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+ポリシー整合性は **ナレッジグラフ + 構造化推論 + 出所 + 人間判断**。
+
+Policy consistency = **knowledge graph + structured reasoning + provenance + human decision**.
+
+- **B 不正解**: 規模で破綻。 / Doesn't scale.
+- **C 不正解**: ガバナンス越権。 / Out of scope.
+- **D 不正解**: 重大ギャップ放置。 / Leaves gaps.
+
+**参照 / Reference:** GRC consistency
+</details>
+
+---
+
+## 問題 46 / Question 46
+
+**シナリオ / Scenario:**
+
+工場の **品質検査レポート**から不適合（NCR: Non-Conformance Report）を構造化抽出。**根本原因（root cause）と是正措置（corrective action）** をペアで取り出します。
+
+A factory extracts NCRs from inspection reports — **root cause + corrective action** as pairs.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **5 Why + Ishikawa 構造**：(i) `tool_use` で `{ ncr_id, observation, severity, root_cause: { 5_whys[], category: enum["machine","method","material","manpower","measurement","environment"] }, corrective_action: { description, type: "containment"|"correction"|"preventive", owner, deadline, evidence_required[] } }` を構造化、(ii) 根本原因が浅い（=2 Why 未満）の場合は **検証要求**フラグ、(iii) 是正措置の有効性は **後続フォローアップタスク**として登録、(iv) 同種 NCR が再発した場合は **`recurrence_link`** で紐付け / **5 Whys + Ishikawa**: (i) `tool_use` returns `{ ncr_id, observation, severity, root_cause: { 5_whys[], category: enum["machine","method","material","manpower","measurement","environment"] }, corrective_action: { description, type: "containment"|"correction"|"preventive", owner, deadline, evidence_required[] } }`, (ii) shallow root cause (<2 whys) raises a **verification flag**, (iii) effectiveness checks become **follow-up tasks**, (iv) recurrent NCRs link via `recurrence_link`
+- B) 自由文 / Free text
+- C) 根本原因は省略 / Skip root cause
+- D) 是正措置は別管理 / Manage CA separately
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+NCR は **5 Why + Ishikawa + 是正タイプ + フォローアップ + 再発紐付け**。
+
+NCR = **5 Whys + Ishikawa + CA type + follow-ups + recurrence**.
+
+- **B 不正解**: 解析不能。 / Not analyzable.
+- **C 不正解**: 再発防止不能。 / Can't prevent recurrence.
+- **D 不正解**: 関連性喪失。 / Loses linkage.
+
+**参照 / Reference:** NCR・root cause analysis
+</details>
+
+---
+
+## 問題 47 / Question 47
+
+**シナリオ / Scenario:**
+
+サプライチェーンで **発注データの正規化**。各サプライヤーが異なるフォーマット（CSV / EDI / メール / PDF）で送ってくる注文確認を統一スキーマに整理。
+
+SCM normalizes order confirmations from suppliers (CSV / EDI / email / PDF) into a unified schema.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **入力種別ごとのプロンプト + 共通スキーマ**：(i) EDI 850/855/856 用、CSV 用、PDF 用、メール用の 4 種別プロンプト、(ii) すべて同じスキーマ（`{ po_number, supplier_id, line_items: [{sku, quantity, unit_price, currency, expected_delivery, ...}], total, currency, ... }`）に正規化、(iii) **サプライヤー別の癖**（独自 SKU 命名・通貨単位・日付形式）は **サプライヤー特化 Few-shot**、(iv) 不一致は **構造化エラー**（`validation_failures: [{ field, expected, received }]`）、(v) 修正できないものは購買担当にエスカレーション / **Per-input prompts + unified schema**: (i) 4 prompts (EDI 850/855/856 / CSV / PDF / email), (ii) all normalize to one schema (`{ po_number, supplier_id, line_items: [{sku, quantity, unit_price, currency, expected_delivery, ...}], total, currency, ... }`), (iii) **per-supplier quirks** (SKU naming / currency / date) handled via **supplier-specific few-shot**, (iv) mismatches → **structured errors** (`validation_failures: [{ field, expected, received }]`), (v) unfixable → procurement escalation
+- B) 1 つのプロンプトで全部 / One prompt for all
+- C) サプライヤーに統一フォーマット強制 / Force suppliers
+- D) 正規化しない / Skip normalization
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+サプライチェーン正規化は **入力別プロンプト + 共通スキーマ + サプライヤー別 Few-shot + 構造化エラー + エスカレーション**。
+
+SCM normalization = **per-input prompts + unified schema + per-supplier few-shot + structured errors + escalation**.
+
+- **B 不正解**: 入力差で精度低下。 / Drifts.
+- **C 不正解**: 商慣行的に不可能。 / Often infeasible.
+- **D 不正解**: 業務破綻。 / Operationally broken.
+
+**参照 / Reference:** EDI normalization
+</details>
+
+---
+
+## 問題 48 / Question 48
+
+**シナリオ / Scenario:**
+
+製造業の **安全データシート（SDS）解析**で、化学物質情報（GHS 分類・許容濃度・取扱注意）を構造化。**OSHA / EU CLP / 国別規制**で必須項目が異なる。
+
+A factory parses **SDS** (chemical info: GHS / OEL / handling); required items differ across **OSHA / EU CLP / national regulations**.
+
+**設問 / Question:**
+
+最も適切な抽出設計はどれですか？ / Best extraction design?
+
+- A) **規制別必須項目スキーマ + GHS 標準コード**：(i) `tool_use` で `{ chemical_name, cas_number, ghs_pictograms: [enum...], ghs_hazard_codes: [enum...], oel_data: [{ jurisdiction, value, unit }], emergency_procedures, ... }`、(ii) 各規制の必須項目を **専用スキーマで強制**、(iii) 抽出失敗（規制必須項目欠如）は **エラー + 元 SDS のクオリティ問題**として記録、(iv) 関連サプライヤーへ照会、(v) **CAS 番号で別 DB と相互検証** / **Per-regulation required-fields schema + GHS standards**: (i) `tool_use` returns `{ chemical_name, cas_number, ghs_pictograms: [enum...], ghs_hazard_codes: [enum...], oel_data: [{ jurisdiction, value, unit }], emergency_procedures, ... }`, (ii) per-regulation **required fields enforced** via dedicated schemas, (iii) missing required fields → **error + tag SDS-quality issue**, (iv) reach out to supplier, (v) **cross-verify via CAS in other DBs**
+- B) 自由文要約 / Free-text summary
+- C) GHS は無視 / Skip GHS
+- D) SDS は使わない / Don't use SDS
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+SDS は **規制別必須項目 + GHS enum + サプライヤー照会 + 相互検証**。
+
+SDS = **per-regulation required fields + GHS enum + supplier query + cross-verification**.
+
+- **B 不正解**: 規制違反リスク。 / Compliance risk.
+- **C 不正解**: 必須情報欠落。 / Missing required.
+- **D 不正解**: 安全性違反。 / Safety violation.
+
+**参照 / Reference:** SDS・GHS
+</details>
+
+---
+
+## 問題 49 / Question 49
+
+**シナリオ / Scenario:**
+
+工場の **作業指示書（work instruction）** を Claude で生成。**作業者が機械の前で読んで理解できる**ことが必須で、誤解は安全事故につながります。
+
+A factory generates work instructions readable **by operators at the machine**; misinterpretation causes safety incidents.
+
+**設問 / Question:**
+
+最も適切な生成設計はどれですか？ / Best generation design?
+
+- A) **構造化 + 視覚補助 + 検証**：(i) 構造化スキーマ（`{ step_number, action_verb: enum, target_object, tool_required, expected_outcome, safety_warnings: [enum], visual_aid_id?, time_estimate, predecessor_steps[] }`）、(ii) **動詞は固定 enum**（"insert" / "tighten" / "check" / "wait" / 等）で曖昧さ排除、(iii) 安全警告は **国際規格に準拠**（赤・黄色のシグナルワード）、(iv) 生成後 **作業安全担当者と現場リーダーがレビュー**、(v) パイロット運用で **理解率テスト**（5 名の作業者に読ませて理解度を計測）、(vi) 改善ループ / **Structured + visual + validation**: (i) schema (`{ step_number, action_verb: enum, target_object, tool_required, expected_outcome, safety_warnings: [enum], visual_aid_id?, time_estimate, predecessor_steps[] }`), (ii) **action verbs are enum-bounded** ("insert" / "tighten" / "check" / "wait" / ...), (iii) safety warnings follow **international standards** (red/yellow signal words), (iv) **safety officer + line lead review**, (v) **comprehension test** with 5 operators, (vi) iterate
+- B) 自由文で書く / Free text
+- C) 安全警告は省略 / Omit safety warnings
+- D) 作業指示書は不要 / Skip instructions
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+作業指示書は **構造化 + 動詞 enum + 安全規格 + 現場レビュー + 理解率テスト**。
+
+Work instructions = **structured + verb enum + safety standards + line review + comprehension testing**.
+
+- **B 不正解**: 解釈差で事故。 / Interpretation gaps.
+- **C 不正解**: 安全違反。 / Safety violation.
+- **D 不正解**: 業務破綻。 / Operationally broken.
+
+**参照 / Reference:** Work instruction design
+</details>
+
+---
+
+## 問題 50 / Question 50
+
+**シナリオ / Scenario:**
+
+サプライチェーンの **持続可能性報告**（CSRD / TCFD / SASB）で、サプライヤーから収集する ESG データを Claude で構造化。**Scope 1/2/3 の温室効果ガス排出量計算**には特定の方法論があります。
+
+For supply-chain sustainability (CSRD / TCFD / SASB), Claude structures ESG data from suppliers; **Scope 1/2/3 GHG accounting** has specific methodologies.
+
+**設問 / Question:**
+
+最も適切な抽出設計はどれですか？ / Best extraction design?
+
+- A) **GHG プロトコル準拠 + 方法論フィールド**：(i) `tool_use` で `{ supplier_id, scope1_kg_co2e: { value, methodology: enum["activity-based","spend-based","supplier-specific"], emission_factor_source, calculation_basis }, scope2_..., scope3_... }`、(ii) **方法論を必須フィールド化**（同じ kg CO2e でも方法論が違うと比較不可）、(iii) 排出係数のソース（IEA / EPA / IPCC / etc.）と版数、(iv) 不確実性は `confidence_band: { lower, upper }`、(v) 検証はサードパーティ保証（assurance）担当が実施、(vi) すべての値の **claim → source** を保持 / **GHG-protocol-compliant + methodology fields**: (i) `tool_use` returns `{ supplier_id, scope1_kg_co2e: { value, methodology: enum["activity-based","spend-based","supplier-specific"], emission_factor_source, calculation_basis }, scope2_..., scope3_... }`, (ii) **methodology is required** (same kg CO2e is incomparable across methodologies), (iii) emission-factor source (IEA / EPA / IPCC / ...) + version, (iv) uncertainty as `confidence_band: { lower, upper }`, (v) third-party assurance, (vi) **claim → source** preserved everywhere
+- B) 数値だけ抽出 / Extract numbers only
+- C) 方法論は無視 / Ignore methodology
+- D) ESG は不要 / Skip ESG
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+ESG 報告は **GHG プロトコル + 方法論必須 + 係数版数 + 不確実性 + 第三者保証 + 出所**。
+
+ESG = **GHG Protocol + methodology + factor versioning + uncertainty + third-party assurance + provenance**.
+
+- **B 不正解**: 比較不能・規制不適合。 / Incomparable, non-compliant.
+- **C 不正解**: 同上。 / Same.
+- **D 不正解**: 規制違反（CSRD 等）。 / Regulatory breach.
+
+**参照 / Reference:** GHG Protocol・CSRD
+</details>
+
+---
+
 > **前のドメイン / Previous:** [`domain3_claude_code_workflows.md`](./domain3_claude_code_workflows.md) | **次のドメイン / Next:** [`domain5_context_reliability.md`](./domain5_context_reliability.md)
