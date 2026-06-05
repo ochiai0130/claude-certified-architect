@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIアプリビルダー 技術要件定義</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  background: #f0f2f5;
+  color: #1a1a2e;
+  min-height: 100vh;
+}
+
+.page { max-width: 920px; margin: 0 auto; padding: 48px 24px 96px; }
+
+/* Header */
+.doc-header {
+  background: linear-gradient(135deg, #1a1a2e 0%, #2c2c4a 100%);
+  color: #fff;
+  border-radius: 16px;
+  padding: 40px 40px 34px;
+  margin-bottom: 32px;
+  box-shadow: 0 10px 30px rgba(26,26,46,.18);
+}
+.doc-header .eyebrow {
+  font-size: 12px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: #7f8fa6; margin-bottom: 12px;
+}
+.doc-header h1 {
+  font-size: 30px; font-weight: 800; line-height: 1.3; color: #fff;
+  letter-spacing: .01em;
+}
+.doc-header .lead {
+  margin-top: 14px; font-size: 15px; color: #cdd3de; line-height: 1.75; max-width: 720px;
+}
+
+/* Table of contents */
+.toc {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 22px 26px;
+  margin-bottom: 32px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+.toc h2 {
+  font-size: 13px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: #7f8fa6; margin-bottom: 14px;
+  border: none; padding: 0;
+}
+.toc ol { list-style: none; counter-reset: toc; columns: 2; column-gap: 36px; }
+.toc li { counter-increment: toc; margin-bottom: 9px; break-inside: avoid; }
+.toc a {
+  color: #2b6cb0; text-decoration: none; font-size: 14.5px; font-weight: 500;
+  display: inline-flex; align-items: baseline; gap: 8px;
+}
+.toc a::before {
+  content: counter(toc); color: #a0aec0; font-weight: 700; font-size: 12.5px;
+  min-width: 18px;
+}
+.toc a:hover { text-decoration: underline; color: #1e3a5f; }
+
+/* Sections */
+section.block {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 30px 36px 34px;
+  margin-bottom: 22px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.04);
+  scroll-margin-top: 24px;
+}
+
+h2 {
+  font-size: 21px; font-weight: 700; color: #1a1a2e;
+  padding-bottom: 12px; margin-bottom: 20px;
+  border-bottom: 2px solid #edf2f7;
+  display: flex; align-items: baseline; gap: 12px;
+}
+h2 .num {
+  font-size: 14px; font-weight: 800; color: #fff;
+  background: #2b6cb0; border-radius: 8px;
+  padding: 3px 11px; flex-shrink: 0; letter-spacing: .02em;
+}
+
+h3 {
+  font-size: 16.5px; font-weight: 700; color: #2d3748;
+  margin: 24px 0 12px;
+  padding-left: 12px; border-left: 4px solid #63b3ed;
+}
+h3:first-of-type { margin-top: 6px; }
+
+p { margin-bottom: 12px; color: #2d3748; }
+
+ul { list-style: none; margin: 4px 0 14px; }
+ul li {
+  position: relative; padding-left: 22px; margin-bottom: 9px; color: #2d3748;
+}
+ul li::before {
+  content: ""; position: absolute; left: 4px; top: 11px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #63b3ed;
+}
+ul ul { margin: 8px 0 4px; }
+ul ul li::before { background: #cbd5e0; width: 6px; height: 6px; top: 11px; }
+
+strong { color: #1a1a2e; font-weight: 700; }
+
+code {
+  font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+  font-size: 13.5px;
+  background: #edf2f7;
+  color: #c2410c;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid #e2e8f0;
+  word-break: break-all;
+}
+
+/* Table */
+.table-wrap { overflow-x: auto; margin: 6px 0 8px; }
+table {
+  width: 100%; border-collapse: collapse; font-size: 14.5px;
+  border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;
+}
+thead th {
+  background: #1a1a2e; color: #fff; font-weight: 600;
+  text-align: left; padding: 12px 16px; white-space: nowrap;
+}
+tbody td {
+  padding: 11px 16px; border-top: 1px solid #edf2f7; color: #2d3748;
+  vertical-align: top;
+}
+tbody tr:nth-child(even) { background: #f7fafc; }
+tbody td:first-child { font-weight: 600; color: #1a1a2e; white-space: nowrap; }
+
+/* Callout for security closing */
+footer.doc-footer {
+  margin-top: 36px; text-align: center; color: #7f8fa6; font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .toc ol { columns: 1; }
+  .doc-header { padding: 30px 24px; }
+  .doc-header h1 { font-size: 24px; }
+  section.block { padding: 24px 22px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="doc-header">
+    <div class="eyebrow">Technical Requirements</div>
+    <h1>AIアプリビルダー 技術要件定義</h1>
+    <p class="lead">
+      自然言語でアプリを生成できるAIアプリビルダープラットフォーム。生成されたアプリはCloudflare上で管理・ホスティングされ、ユーザーごとに完全に独立した環境を持つ。
+    </p>
+  </header>
+
+  <nav class="toc" aria-label="目次">
+    <h2>目次</h2>
+    <ol>
+      <li><a href="#sec1">概要</a></li>
+      <li><a href="#sec2">アプリ生成</a></li>
+      <li><a href="#sec3">インフラ構成（Cloudflare）</a></li>
+      <li><a href="#sec4">プレビュー機能</a></li>
+      <li><a href="#sec5">問い合わせ機能（メール送信）</a></li>
+      <li><a href="#sec6">同時ビルド制御</a></li>
+      <li><a href="#sec7">ワークスペース・プロジェクト管理</a></li>
+      <li><a href="#sec8">スケール要件</a></li>
+      <li><a href="#sec9">セキュリティ</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1. 概要 -->
+  <section class="block" id="sec1">
+    <h2><span class="num">1</span>概要</h2>
+    <p>
+      自然言語でアプリを生成できるAIアプリビルダープラットフォーム。生成されたアプリはCloudflare上で管理・ホスティングされ、ユーザーごとに完全に独立した環境を持つ。
+    </p>
+  </section>
+
+  <!-- 2. アプリ生成 -->
+  <section class="block" id="sec2">
+    <h2><span class="num">2</span>アプリ生成</h2>
+
+    <h3>2-1. AIエージェント</h3>
+    <ul>
+      <li>自然言語の指示を受け取り、フルスタックアプリのコードを生成する</li>
+      <li>生成する技術スタック：Next.js / Remix（SSR対応）</li>
+      <li>生成物：ソースコード一式 + <code>wrangler.toml</code>（Cloudflare設定ファイル）</li>
+      <li>問い合わせ機能が必要な場合、MailerSend SDKを組み込んだコードを生成する</li>
+      <li>ビルドエラー発生時は自動検知し、コードを再生成する</li>
+      <li>使用モデル：マルチLLMアーキテクチャ（ロジック系とコード生成系でルーティング）</li>
+    </ul>
+
+    <h3>2-2. コードの保管</h3>
+    <ul>
+      <li>生成されたソースコードは<strong>Cloudflare R2</strong>にバージョン管理して保存する</li>
+      <li>キー設計：<code>apps/{app_id}/v{N}/</code> 配下にファイル群を格納</li>
+      <li>バージョンのメタデータ（バージョン番号・ステータス・タイムスタンプ等）は<strong>Cloudflare D1</strong>または<strong>Durable Objects</strong>で管理する</li>
+      <li>ロールバック機能：指定バージョンのコードをR2から取得して再デプロイ可能にする</li>
+    </ul>
+  </section>
+
+  <!-- 3. インフラ構成 -->
+  <section class="block" id="sec3">
+    <h2><span class="num">3</span>インフラ構成（Cloudflare）</h2>
+
+    <h3>3-1. アプリホスティング</h3>
+    <ul>
+      <li><strong>Cloudflare Workers for Platforms</strong>を使用し、ユーザーごとに独立したWorkerをデプロイする</li>
+      <li>Dispatch Namespaceを使用してWorkerを管理する</li>
+      <li>デフォルトURL：<code>user-xxx.yourplatform.workers.dev</code></li>
+    </ul>
+
+    <h3>3-2. データベース</h3>
+    <ul>
+      <li>ユーザーごとに完全独立したDBを持つ</li>
+      <li><strong>5万ユーザー以下</strong>：ユーザーごとに独立したD1 DB（最大5万DB）</li>
+      <li><strong>5万ユーザー超</strong>：以下いずれかで対応する
+        <ul>
+          <li><strong>Durable Objects</strong>への切り替え（DB数上限なし・推奨）</li>
+          <li><strong>シャーディング</strong>（ユーザーIDハッシュで複数D1に分散）</li>
+          <li><strong>論理分離</strong>（共有D1に<code>tenant_id</code>カラムで分離）</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>3-3. コード・アセット保管</h3>
+    <ul>
+      <li><strong>Cloudflare R2</strong>にソースコードを保管する（エグレス費用なし）</li>
+    </ul>
+
+    <h3>3-4. 独自ドメイン</h3>
+    <ul>
+      <li><strong>Cloudflare SSL for SaaS</strong>でユーザーの独自ドメインに対応する</li>
+      <li>DNS認証（SPF・DKIM・DMARC）はMailerSend APIと連携する</li>
+      <li>SSL証明書は自動発行・自動更新</li>
+      <li>料金：$0.10/ドメイン/月（最初の100ドメインは無料）</li>
+    </ul>
+  </section>
+
+  <!-- 4. プレビュー機能 -->
+  <section class="block" id="sec4">
+    <h2><span class="num">4</span>プレビュー機能</h2>
+    <ul>
+      <li>生成完了後、ビルダー画面上のiframeにデプロイ済みアプリを表示する</li>
+      <li>プレビューはモック（ダミー）ではなく、実際のDBに接続された本番同等環境</li>
+      <li>Worker側のレスポンスに<code>X-Frame-Options: ALLOW-FROM</code>または<code>Content-Security-Policy: frame-ancestors</code>ヘッダーを付与してiframe埋め込みを許可する</li>
+      <li>デプロイ完了（<code>status: active</code>）をポーリングで確認後にiframe表示する</li>
+    </ul>
+  </section>
+
+  <!-- 5. 問い合わせ機能 -->
+  <section class="block" id="sec5">
+    <h2><span class="num">5</span>問い合わせ機能（メール送信）</h2>
+
+    <h3>5-1. メールサービス</h3>
+    <ul>
+      <li><strong>MailerSend</strong>を使用する</li>
+      <li>Cloudflare WorkersとのNode.js SDK互換性あり（<code>nodejs_compat</code>フラグで対応）</li>
+      <li>APIキーはWrangler Secretで安全に管理する</li>
+    </ul>
+
+    <h3>5-2. BYODドメイン対応（ユーザーが自分のドメインを持ち込む）</h3>
+    <ul>
+      <li>MailerSend APIでユーザーのドメインをプログラムで登録する</li>
+      <li>DNS認証レコード（SPF・DKIM・DMARC）をAPIで取得しUIに提示する</li>
+      <li>DNS認証完了をポーリングまたはWebhookで検知する</li>
+      <li><strong>5万ドメイン超</strong>はMailerSend Enterpriseプラン（無制限ドメイン）で対応、または<strong>Ark</strong>への切り替えを検討する</li>
+      <li>MailerSend APIのレートリミット：60リクエスト/分</li>
+    </ul>
+
+    <h3>5-3. 2段階の有効化</h3>
+    <ul>
+      <li>DNS認証前：テストモード（プラットフォーム共有ドメインまたはMailerSendトライアルドメインで送信）</li>
+      <li>DNS認証後：本番モード（ユーザーの独自ドメインで送信）</li>
+    </ul>
+  </section>
+
+  <!-- 6. 同時ビルド制御 -->
+  <section class="block" id="sec6">
+    <h2><span class="num">6</span>同時ビルド制御</h2>
+
+    <h3>6-1. ビルドキュー</h3>
+    <ul>
+      <li><strong>Cloudflare Queues</strong>でビルドリクエストをキュー管理する</li>
+      <li>Consumerの同時実行数（<code>max_concurrency</code>）でCloudflare APIのレートリミットを超えないよう制御する</li>
+      <li>MailerSendの設定リクエストも別途Queuesで管理し、60req/minを守る</li>
+    </ul>
+
+    <h3>6-2. Workflow管理</h3>
+    <ul>
+      <li><strong>Cloudflare Workflows</strong>で1ユーザーの1ビルドを1インスタンスとして管理する</li>
+      <li>同時実行上限：5万インスタンス（2026年4月時点）</li>
+      <li>各ステップに自動リトライ・タイムアウトを設定する
+        <ul>
+          <li>Step1：コード生成（リトライ3回・タイムアウト2分）</li>
+          <li>Step2：ビルド（タイムアウト3分）</li>
+          <li>Step3：デプロイ + MailerSend設定（並行実行・タイムアウト2分）</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>6-3. AI APIのレートリミット制御</h3>
+    <ul>
+      <li><strong>Durable Objects</strong>でシングルトンのレートリミッターを実装する</li>
+      <li>トークンバケット方式で全WorkflowインスタンスからのAI APIリクエストを集中制御する</li>
+    </ul>
+
+    <h3>6-4. Cloudflare APIのレートリミット対策</h3>
+    <ul>
+      <li>Cloudflare APIのグローバル制限：1,200リクエスト/5分</li>
+      <li>複数のAPIトークンを用意してラウンドロビンで分散させる</li>
+      <li>トークン10本で12,000リクエスト/5分まで拡張可能</li>
+    </ul>
+
+    <h3>6-5. コスト・上限管理</h3>
+    <ul>
+      <li><strong>D1</strong>でユーザーごとの同時ビルド数・月次ビルド回数・クレジットを管理する</li>
+      <li>上限超過時はQueuesへのenqueueをブロックしユーザーに通知する</li>
+    </ul>
+
+    <h3>6-6. 進捗通知</h3>
+    <ul>
+      <li><strong>SSE（Server-Sent Events）またはWebSocket</strong>でビルド進捗をフロントにリアルタイム配信する</li>
+      <li>表示ステップ：コード生成中 → ビルド中 → デプロイ中 → 完了</li>
+    </ul>
+  </section>
+
+  <!-- 7. ワークスペース -->
+  <section class="block" id="sec7">
+    <h2><span class="num">7</span>ワークスペース・プロジェクト管理</h2>
+    <ul>
+      <li>ユーザーごとにワークスペースを持つ</li>
+      <li>アプリはワークスペース内で管理し、フォルダで整理できる</li>
+      <li>アプリごとに独立したWorker・DB・R2パスを持つ</li>
+    </ul>
+  </section>
+
+  <!-- 8. スケール要件 -->
+  <section class="block" id="sec8">
+    <h2><span class="num">8</span>スケール要件</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>コンポーネント</th>
+            <th>上限・目標値</th>
+            <th>対応方針</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ユーザー数</td>
+            <td>5万人〜</td>
+            <td>Durable Objectsで対応</td>
+          </tr>
+          <tr>
+            <td>同時ビルド数</td>
+            <td>Workflowsの5万インスタンス以内</td>
+            <td>Queuesで制御</td>
+          </tr>
+          <tr>
+            <td>Workerデプロイ数</td>
+            <td>無制限（Workers for Platforms）</td>
+            <td>問題なし</td>
+          </tr>
+          <tr>
+            <td>ドメイン数</td>
+            <td>5万〜無制限</td>
+            <td>MailerSend Enterprise / Ark</td>
+          </tr>
+          <tr>
+            <td>DB数</td>
+            <td>5万超</td>
+            <td>Durable Objects / シャーディング</td>
+          </tr>
+          <tr>
+            <td>AI APIリクエスト</td>
+            <td>モデルのレートリミット依存</td>
+            <td>Durable Objectsで集中制御</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 9. セキュリティ -->
+  <section class="block" id="sec9">
+    <h2><span class="num">9</span>セキュリティ</h2>
+    <ul>
+      <li>APIキーはすべてWrangler Secretで管理する</li>
+      <li>iframeプレビューはビルダードメインからのみ許可する（<code>frame-ancestors</code>）</li>
+      <li>テナント間のデータ分離を徹底する（WorkerとDB両方でユーザーごとに分離）</li>
+    </ul>
+  </section>
+
+  <footer class="doc-footer">
+    AIアプリビルダー 技術要件定義 — Cloudflare ベースのマルチテナント SaaS アーキテクチャ
+  </footer>
+
+</div>
+</body>
+</html>
