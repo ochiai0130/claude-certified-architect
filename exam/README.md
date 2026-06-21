@@ -30,7 +30,7 @@ Each question incorporates **two or more** of the following advanced elements:
 | 3 | Claude Code の設定とワークフロー / Claude Code Configuration and Workflows | 20% | [`domain3_claude_code_workflows.md`](./domain3_claude_code_workflows.md) |
 | 4 | プロンプトエンジニアリングと構造化出力 / Prompt Engineering and Structured Output | 20% | [`domain4_prompt_structured_output.md`](./domain4_prompt_structured_output.md) |
 | 5 | コンテキスト管理と信頼性 / Context Management and Reliability | 15% | [`domain5_context_reliability.md`](./domain5_context_reliability.md) |
-| **計 / Total** | | **100%** | 150 問 / questions |
+| **計 / Total** | | **100%** | 250 問 / questions |
 
 ## 形式 / Format
 
@@ -44,7 +44,7 @@ Each question incorporates **two or more** of the following advanced elements:
 2. 各問の `<details>` を開く前に自分の回答を決める
 3. 解説を読んで誤答パターンを確認する
 4. ガイド本編 (`../guide_ja.md` / `../guide_en.MD`) の参照節に戻って深掘り
-5. 8 割（30 問中 24 問）以上を各ドメインで正解できれば、上級レベルとして安定的な実力
+5. 8 割（50 問中 40 問）以上を各ドメインで正解できれば、上級レベルとして安定的な実力。Q31〜Q50 は **業界別実務シナリオ**（金融・医療・法務・製造）を深掘りしているので、本番想定の業界に合わせて重点学習
 
 Recommended approach:
 
@@ -52,7 +52,7 @@ Recommended approach:
 2. Decide your answer before opening the `<details>` block
 3. Review the explanations including why each distractor is wrong
 4. Return to the relevant section of the main guide (`../guide_ja.md` / `../guide_en.MD`) for deeper study
-5. Scoring ≥80% per domain (24/30) consistently indicates solid advanced-level proficiency
+5. Scoring ≥80% per domain (40/50) consistently indicates solid advanced-level proficiency. Q31–Q50 dive into **industry-specific operational scenarios** (finance, healthcare, legal, manufacturing) — focus on the industries that match your real-world deployment
 
 ## 注意 / Disclaimer
 

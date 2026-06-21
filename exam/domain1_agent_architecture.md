@@ -1099,5 +1099,705 @@ Preserve parallelism; enforce uniqueness at the **order API** with a distributed
 
 ---
 
+## 問題 31 / Question 31
+
+**シナリオ / Scenario:**
+
+ティア 1 投資銀行の **約定後処理（post-trade settlement）** で、Claude Agent SDK を使った再照合エージェントを設計中です。約定 → 確認書突合 → 例外処理 → CSD（証券保管振替機関）連携というフローで、決済リスクは T+1 で解消されなければなりません。日中で 50 万件の約定を処理し、例外発生は 0.3%（1,500 件）。例外の自動解決と人間オペレータへのエスカレーションを両立させる必要があります。
+
+A tier-1 investment bank's **post-trade settlement** uses a Claude Agent SDK reconciliation agent: trade → confirmation matching → exception handling → CSD interaction, with settlement risk that must clear by T+1. Daily 500K trades, 0.3% (1,500) exceptions. Auto-resolve and human-escalate must coexist.
+
+**設問 / Question:**
+
+最も適切なオーケストレーションはどれですか？ / Best orchestration?
+
+- A) 単一エージェントが全 50 万件を直列処理 / One agent serially handles all 500K
+- B) 例外（1,500 件）のみ Agent SDK で扱い、残りはルールベースで処理。例外用コーディネーターは **3 段階エスカレーションパス**（Tier 1: 自動修正 / Tier 2: シニアオペレータ / Tier 3: ミドルオフィス）を持ち、各段で `confidence` と **修正手順の構造化ログ**を残す。T+1 SLA を超過する例外は自動的に Tier 3 へ昇格 / Process the 1,500 exceptions with the Agent SDK; rules handle the rest. The exception coordinator has a **3-tier escalation path** (Tier 1 auto-fix / Tier 2 senior op / Tier 3 middle office) with `confidence` and a **structured log of remediation steps** at each tier. Exceptions risking T+1 SLA escalate automatically to Tier 3
+- C) すべてを Tier 1 で自動修正 / Auto-fix everything in Tier 1
+- D) 例外は無視して T+2 で処理 / Skip exceptions; process at T+2
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+ポストトレード例外処理では **大半をルールで処理し、エージェントは例外領域に集中**するのが定石。エスカレーションパスは決済リスクとオペレータ負荷のバランスで設計し、SLA 監視で動的に Tier 昇格させる。各段の構造化ログは T+1 内の解消・監査再現性に必須。
+
+Post-trade exception handling pattern: **rules for the bulk, agent for exceptions**. Tiered escalation balances risk and operator load; SLA monitoring drives dynamic promotion. Structured logs per tier are essential for T+1 closure and audit reproducibility.
+
+- **A 不正解**: 50 万件の直列処理は SLA 不可能。 / Serial 500K can't meet SLA.
+- **C 不正解**: 高難度例外を Tier 1 で誤修正するリスク。 / Misfix risk in Tier 1.
+- **D 不正解**: T+1 規制違反。 / Regulatory breach.
+
+**参照 / Reference:** Post-trade settlement・T+1 規制・段階エスカレーション
+</details>
+
+---
+
+## 問題 32 / Question 32
+
+**シナリオ / Scenario:**
+
+大手クレジットカード会社の **リアルタイム不正検知**で、Claude エージェントを補助判断に使う構想。1 件あたり 50ms 以内に「承認 / 拒否 / 追加認証要求（3DS）」を判定する必要があります。ML モデルが第一段階、エージェントは ML モデルの境界例（confidence 0.4〜0.6）のみ取り扱う方針。
+
+A real-time fraud detection at a major card issuer plans Claude as auxiliary judgment for borderline ML cases (confidence 0.4–0.6); approve / decline / step-up (3DS) decision must complete within 50ms.
+
+**設問 / Question:**
+
+最も適切なエージェント設計はどれですか？ / Best agent design?
+
+- A) Claude を毎件呼び出して 50ms 以内に判断させる / Call Claude every transaction in 50ms
+- B) `claude-haiku-4-5` を使い、すべての transaction にツールチェーンを呼ばせる / Use `claude-haiku-4-5` with full tool chain on every tx
+- C) ML 第一段で **確信度高**は即時判定、**境界例のみ**を非同期キューに投入し Claude が分析、結果は **次回以降の同一カードの判定にフィードバック**（リアルタイムには間に合わない設計）。リアルタイム経路には **キャッシュされた過去判断 + 動的ルール**を活用。Claude のレイテンシは別 SLA（数秒〜数十秒）で運用 / ML first-pass for high-confidence; **borderline cases** are pushed to an async queue for Claude analysis, results **feed forward to subsequent decisions** for the same card (not real-time). Real-time path uses **cached prior decisions + dynamic rules**. Claude operates under a separate SLA (seconds-to-tens-of-seconds)
+- D) Claude を使わない / Don't use Claude
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: C**
+
+50ms SLA 下で Claude を真のリアルタイム判定に使うのは現実的ではありません。**ハイブリッド設計**：(i) 高確信度はルール / ML、(ii) 境界例は非同期で深掘り、(iii) 結果は次回以降にフィードバックする。リアルタイム判定は ML + 動的ルール + キャッシュで完結させ、Claude は **戦術的（次の判断に効く）** な役割に限定するのがプロのパターン。
+
+A 50ms SLA isn't a realistic Claude budget. **Hybrid**: rules/ML for high confidence; async deep analysis for borderlines; results feed forward. Real-time path = ML + dynamic rules + cache; Claude provides **tactical** advantage for subsequent decisions.
+
+- **A 不正解**: 50ms で API ラウンドトリップを含めるのは事実上不可能。 / Practically impossible.
+- **B 不正解**: ツールチェーン呼び出しは数百ms〜秒単位。 / Adds seconds.
+- **D 不正解**: Claude を使わない選択肢で問題は解決するが、機会損失。 / Misses value.
+
+**参照 / Reference:** リアルタイムシステム設計・ハイブリッド ML/LLM
+</details>
+
+---
+
+## 問題 33 / Question 33
+
+**シナリオ / Scenario:**
+
+国際銀行の **規制報告**（FRY-9C・FFIEC・COREP・LCR）の自動生成に Claude を導入。月次・四半期で**数十のテンプレート**を、勘定系・市場リスク・与信リスクなど複数システムから集計したデータで埋めます。報告書には **誤りが許されず**（罰金リスク）、生成ロジックの **完全な監査トレース**が必要。
+
+An international bank automates regulatory reports (FRY-9C, FFIEC, COREP, LCR) using Claude; dozens of monthly/quarterly templates aggregate from core banking, market-risk, and credit-risk systems. **Zero-error tolerance** (fines) and **complete audit trace** required.
+
+**設問 / Question:**
+
+最も適切なエージェントトポロジはどれですか？ / Best topology?
+
+- A) 自由記述で 1 つのエージェントが全部処理 / One agent free-forms everything
+- B) **固定パイプライン**：①データソース取得 → ②検証（クロスシステム整合性） → ③テンプレート埋め込み → ④数値検証（前期比・規制定義との一致） → ⑤独立レビューエージェント（`context: fork`）→ ⑥承認待ち。各ステップで **入出力ハッシュを WORM ログ**に記録、再実行で同じハッシュなら確定。逸脱時は人間レビュー必須 / **Fixed pipeline**: ①source ingest → ②validation (cross-system consistency) → ③template fill → ④numeric checks (period-over-period, against regulatory defs) → ⑤independent review agent (`context: fork`) → ⑥approval. Each step writes **input/output hashes to WORM logs**; deterministic re-run reproduces the same hashes. Deviations trigger mandatory human review
+- C) 動的に行動を決めさせる / Let the agent decide dynamically
+- D) 報告書は手書きに戻す / Revert to hand-written reports
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+規制報告は **再現可能性が最重要**：固定パイプライン + 各段階のハッシュベース監査 + 独立レビュー + 承認ゲート。動的タスク分解は監査トレースを破壊するため不適。
+
+Regulatory reports demand **reproducibility**: fixed pipeline + per-stage hash audit + independent review + approval. Dynamic task decomposition destroys audit traces.
+
+- **A 不正解**: 自由記述は再現性ゼロ。 / Zero reproducibility.
+- **C 不正解**: 監査不可能。 / Not auditable.
+- **D 不正解**: 自動化価値を失う。 / Loses value.
+
+**参照 / Reference:** 規制報告・固定パイプライン・WORM
+</details>
+
+---
+
+## 問題 34 / Question 34
+
+**シナリオ / Scenario:**
+
+ヘッジファンドの **クオンツリサーチ**で、Claude が市場ニュース・SEC 提出書類・ブローカーレポートから **アルファシグナル候補**を抽出。複数戦略チームが並行で利用し、戦略ごとに同じデータの解釈が異なる場合があります。
+
+A hedge fund's quant research has Claude extract alpha signal candidates from news / SEC filings / broker notes. Multiple strategy teams use it in parallel; same data may be interpreted differently per strategy.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) 戦略ごとに **専用のサブエージェント定義**を作成（`AgentDefinition` ごとに異なるシステムプロンプト・許可ツール・出力スキーマ）。共有データ取得は **共通抽出エージェント**で行い、その出力を各戦略エージェントが独立解釈。**戦略間で結果がリークしないよう** `Task` の `prompt` で送る情報を最小化。各戦略の解釈履歴は **scratchpad ファイル**で版管理 / Per-strategy `AgentDefinition`s (distinct system prompts / allowed tools / output schemas). A **shared extraction agent** retrieves data; each strategy reinterprets independently. **Prevent cross-strategy leakage** via minimal `Task` prompts. Versioned scratchpad files per strategy
+- B) 1 つのエージェントが全戦略の判断 / One agent for all strategies
+- C) 戦略ごとに別 Anthropic アカウント / Separate Anthropic accounts
+- D) 戦略は分離せずチームに任せる / Leave separation to teams
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+戦略の **解釈差異の独立性**は競争優位性。`AgentDefinition` 分離 + 共通抽出 + 最小情報送信で機械的に分離。情報リークは規制（front-running 等）にも関わる。
+
+Independent strategy interpretations are competitive edge. `AgentDefinition` separation + shared extraction + minimal prompts mechanically isolate. Leakage also has regulatory implications.
+
+- **B 不正解**: 解釈バイアス共有・リーク。 / Shared bias / leakage.
+- **C 不正解**: 過剰、運用負荷。 / Overkill.
+- **D 不正解**: 一貫性なし。 / Inconsistent.
+
+**参照 / Reference:** AgentDefinition・戦略分離・情報リーク
+</details>
+
+---
+
+## 問題 35 / Question 35
+
+**シナリオ / Scenario:**
+
+商業銀行で **法人融資の与信審査**を支援するエージェントを構築。財務諸表分析・業界比較・経営者面談ノートのレビューを並列実行し、最後に統合スコアを生成します。融資判断の最終決定権は **必ず人間の与信担当者**。
+
+A commercial bank's corporate-loan underwriting agent runs financial statement analysis, peer comparison, and management-interview review in parallel, producing a consolidated score. **Final lending decision must be a human underwriter.**
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) Claude が融資承認可否を出力 / Have Claude output approve/decline
+- B) 並列サブエージェントの統合結果に対して **構造化ハンドオフ**：`{ overall_score, strengths[], red_flags[], peer_comparison_table, evidence_links[], confidence, recommended_action: "review_recommended_approve" | "review_recommended_decline" | "additional_data_needed" }`。**「approve/decline」ではなく「推奨」**として表現し、人間の判断材料として提示。`PreToolUse` フックで `commit_credit_decision` ツールを **必ず人間承認後にのみ実行可能**にし、最終決定権を技術的に保証 / **Structured handoff** of merged results: `{ overall_score, strengths[], red_flags[], peer_comparison_table, evidence_links[], confidence, recommended_action: "review_recommended_approve" | "review_recommended_decline" | "additional_data_needed" }`. Express as **recommendation, not decision**. A `PreToolUse` hook ensures `commit_credit_decision` only fires **after human approval** — technically guaranteed
+- C) ML スコアだけ使う / Use only an ML score
+- D) Claude は使わない / Don't use Claude
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+人間判断必須の領域では LLM 出力は **意思決定そのものではなく決定支援**。フックで決定論的にゲートを設置し、構造化ハンドオフで根拠を可視化。
+
+Where human decision is mandated, LLM output is **decision support, not the decision**. Hooks deterministically gate; structured handoff surfaces evidence.
+
+- **A 不正解**: 規制（公平貸付・ECOA 等）違反リスク。 / Regulatory risk.
+- **C 不正解**: 質的情報の活用が抜ける。 / Misses qualitative info.
+- **D 不正解**: 機会損失。 / Missed value.
+
+**参照 / Reference:** 与信審査・人間承認・PreToolUse
+</details>
+
+---
+
+## 問題 36 / Question 36
+
+**シナリオ / Scenario:**
+
+総合病院の **臨床決定支援（CDS）** で、Claude エージェントが医師の処方判断を補助します。電子カルテから患者プロファイル取得 → 薬物相互作用チェック → アレルギーチェック → 推奨用量計算という 4 サブエージェント。**EHR システム（Epic/Cerner）への書き込みは絶対に禁止**、読み取り専用。
+
+A hospital CDS agent assists prescribing: 4 subagents — patient profile retrieval / drug-drug interaction / allergy check / dose calculation — from the EHR. **Writes to EHR (Epic / Cerner) are forbidden**; read-only.
+
+**設問 / Question:**
+
+最も適切な保証はどれですか？ / Best safeguard?
+
+- A) システムプロンプトで「書き込まない」と指示 / Prompt: "do not write"
+- B) 各 `AgentDefinition` の `allowed_tools` から **書き込み系ツールを完全削除**し、MCP サーバ側でも書き込みエンドポイントを **HIPAA ロール（read-only）** で接続。さらに `PreToolUse` フックで MCP 書き込みを多層防御。EHR 監査ログ（HIPAA 必須）と Agent SDK 側 `PostToolUse` ログを照合し、不一致時はインシデント / **Remove write tools entirely from `allowed_tools`** in each `AgentDefinition`; connect to MCP using a **HIPAA read-only role** server-side. Add a `PreToolUse` hook for defense in depth. Reconcile EHR audit logs (HIPAA mandatory) with Agent SDK `PostToolUse` logs; mismatches are incidents
+- C) Claude を信頼して書き込み許可 / Trust Claude with writes
+- D) EHR 統合をしない / Don't integrate with EHR
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+医療 EHR への書き込み制御は **多層防御**：`allowed_tools` で物理的不可能化、サーバ側ロールで二重防御、フックで三重、ログ照合で四重。HIPAA 監査での説明可能性を確保。
+
+EHR write control demands **defense in depth**: `allowed_tools` removal, server-side role, hook, log reconciliation. Ensures HIPAA audit explainability.
+
+- **A 不正解**: プロンプトは確率的、HIPAA 不適合。 / Probabilistic.
+- **C 不正解**: 規制違反リスク。 / Regulatory risk.
+- **D 不正解**: 統合価値を捨てる。 / Loses value.
+
+**参照 / Reference:** HIPAA・最小権限・defense in depth
+</details>
+
+---
+
+## 問題 37 / Question 37
+
+**シナリオ / Scenario:**
+
+大手保険会社の **保険金請求処理**を Claude で自動化。事故報告 → 保険契約照合 → 損害評価 → 過去類似請求検索 → 支払推奨という 5 ステップ。**FRA / 保険金詐欺対策法**により、疑わしい請求は **専任 SIU（Special Investigations Unit）** にエスカレーション必須。
+
+A major insurer automates claim processing with Claude: incident → policy match → damage assessment → similar-claim lookup → payment recommendation. Suspicious claims must escalate to the **SIU (Special Investigations Unit)** per fraud regulations.
+
+**設問 / Question:**
+
+最も適切なエスカレーション設計はどれですか？ / Best escalation design?
+
+- A) 疑わしい場合に SIU 担当者に Slack で連絡 / Slack the SIU
+- B) **疑わしさスコア**を構造化（`{ score: 0..1, fraud_indicators: [enum...], evidence_quotes: [{quote, source, location}], confidence, recommended_siu_action: enum }`）。スコア閾値超過時は **`PreToolUse` フック**で `commit_payment` を決定論的にブロックし、自動的に SIU エスカレーションキューに入れる。**ハンドオフ全体を 30 秒で SIU が判断できる構造**にし、原本リンクと過去類似請求 ID を含める / Structure a **suspicion score** (`{ score: 0..1, fraud_indicators: [enum...], evidence_quotes: [{quote, source, location}], confidence, recommended_siu_action: enum }`). On threshold breach, **`PreToolUse` hook** deterministically blocks `commit_payment` and queues SIU escalation. Format the handoff so SIU can decide in 30s — include source links and similar-claim IDs
+- C) Claude が SIU 業務も実行 / Have Claude do SIU work
+- D) すべての請求を SIU で確認 / SIU reviews everything
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+保険金詐欺対策では **構造化スコア + 決定論的ブロック + 構造化ハンドオフ**が標準。Slack 通知だけでは支払いが先行するリスク。
+
+Anti-fraud workflow = **structured score + deterministic block + structured handoff**. Slack alone risks payment before review.
+
+- **A 不正解**: 通知だけでは支払い先行リスク。 / Race against payment.
+- **C 不正解**: SIU の専門性は LLM では代替不能。 / Beyond LLM scope.
+- **D 不正解**: 運用不能、SIU 過負荷。 / Operationally infeasible.
+
+**参照 / Reference:** Insurance fraud・SIU・PreToolUse
+</details>
+
+---
+
+## 問題 38 / Question 38
+
+**シナリオ / Scenario:**
+
+製薬会社の **臨床試験モニタリング**で、複数の試験施設（site）からのデータを Claude が監視。プロトコル逸脱（protocol deviation）を検知したら、**FDA 21 CFR Part 11 準拠**の電子記録を残し、Sponsor の Medical Monitor に通知する必要があります。試験は GCP（Good Clinical Practice）下で 2〜5 年継続。
+
+A pharma's clinical trial monitor uses Claude to watch multiple sites for protocol deviations. Deviations require **FDA 21 CFR Part 11-compliant** e-records and Medical Monitor notification. Trials run 2–5 years under GCP.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) ツール呼び出しの後、自由文で記録 / Free-text post-call notes
+- B) **すべての判定とアクション**を `PostToolUse` フックで **電子署名付き WORM ログ**（タイムスタンプ・ユーザー ID・操作・SHA-256・電子署名）に書き込み。長期セッションは `--resume` + 外部チェックポイントで連続性を保ち、各時点の **試験プロトコル版本**もログに紐付け。Medical Monitor への通知は **構造化ハンドオフ**（site / subject / deviation type / severity / regulatory implication）。プロトコル変更時は **メジャー版** として再 baseline 化 / **Every decision and action** is written to **e-signed WORM log** via `PostToolUse` hook (timestamp, user, operation, SHA-256, signature). Long sessions use `--resume` + external checkpoints; each log entry binds the **active trial protocol version**. Medical Monitor notifications use **structured handoff** (site / subject / deviation type / severity / regulatory implication). Protocol changes trigger **major version** re-baseline
+- C) 紙のログだけ残す / Only paper logs
+- D) FDA 21 CFR Part 11 は無視 / Ignore the regulation
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+臨床試験は超長期 + 強規制。WORM ログ + 電子署名 + プロトコル版数紐付け + 構造化エスカレーション + チェックポイント連続性が要件。
+
+Clinical trials are super-long + heavily regulated: WORM + e-sig + protocol version + structured escalation + checkpoint continuity.
+
+- **A 不正解**: 構造化なしで監査不能。 / Not auditable.
+- **C 不正解**: 21 世紀の規制は電子記録対応。 / E-records mandated.
+- **D 不正解**: 違法・出荷停止。 / Illegal.
+
+**参照 / Reference:** FDA 21 CFR Part 11・GCP・clinical trial monitoring
+</details>
+
+---
+
+## 問題 39 / Question 39
+
+**シナリオ / Scenario:**
+
+精神科クリニックで Claude が患者対話のサマリと **リスクスクリーニング**（自殺念慮など）を補助。誤検出は致命的（患者離脱）、検出漏れも致命的（救命機会損失）。**HIPAA + 各州の精神保健法**に準拠する必要があります。
+
+A psych clinic uses Claude for visit summaries and **risk screening** (e.g., suicidal ideation). False positives drive patient drop-off; misses cost lives. Must comply with HIPAA + state mental-health laws.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) Claude のリスク判定をそのまま採用 / Trust Claude's risk verdict
+- B) Claude は **検出補助のみ**（最終判断は臨床医）。リスク指標が出た場合は (i) **構造化されたエビデンス**（発言の原文引用、文脈、スクリーニングスケール対応）、(ii) **複数の独立判定**（self-consistency / 複数サンプル）、(iii) **明確な不確実性表現**を出力し、(iv) 人間臨床医にハンドオフ。すべての判定セッションは **暗号化 PHI ストア**に保存し、患者同意の範囲でのみ利用 / Claude is **detection-aid only**; clinicians decide. On positive: (i) **structured evidence** (verbatim quotes, context, scale alignment), (ii) **multi-sample self-consistency**, (iii) **explicit uncertainty**, (iv) clinician handoff. Sessions stored in **encrypted PHI store**, used within patient consent boundaries
+- C) リスクが疑われたら警察に直接通報 / Call police on suspected risk
+- D) リスクスクリーニングは行わない / Skip risk screening
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+メンタルヘルスは **臨床判断必須 + 法的義務（duty to warn 等）+ 患者プライバシー**の三重制約。Claude は補助役、判断は人間。
+
+Mental health = **clinical judgment required + legal duties (duty to warn) + patient privacy**. Claude assists; humans decide.
+
+- **A 不正解**: 規制不適合 + 倫理問題。 / Regulatory + ethical issue.
+- **C 不正解**: 越権行為で別の法的問題。 / Out of scope, legal issue.
+- **D 不正解**: 機会損失（救命）。 / Loses life-saving signal.
+
+**参照 / Reference:** HIPAA mental health・duty to warn・clinical decision support
+</details>
+
+---
+
+## 問題 40 / Question 40
+
+**シナリオ / Scenario:**
+
+希少疾患の **新薬探索** で、Claude が論文・特許・社内実験データから候補化合物の作用機序仮説を生成。仮説は **科学的に検証可能** でなければならず、根拠論文は必ず引用、内部データソースは **企業秘密**として外部に漏らさない。
+
+For rare-disease drug discovery, Claude generates mechanism-of-action hypotheses from papers / patents / internal experiment data. Hypotheses must be **scientifically testable**; cite papers; keep internal data **confidential**.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) すべてのデータを 1 つのプロンプトに混ぜる / Mix everything in one prompt
+- B) **データ層分離アーキテクチャ**：①公開データ（論文・特許）取得用エージェント（**Citations 機能で出所付与**）、②社内データ取得用エージェント（**社内 MCP のみアクセス可能**、出力に "INTERNAL" タグ）、③仮説生成エージェント（両者の出力を受け、仮説には公開根拠を必須・社内根拠は別フィールドで分離管理）、④検証可能性チェック（実験で反証可能か、定量的か）。社外提出向け出力からは "INTERNAL" タグを **構造的に除去**できる設計 / **Data-layer separation**: ①public-data agent (papers / patents) with **Citations**, ②internal-data agent (MCP-only) tagging output as "INTERNAL", ③hypothesis-gen agent consuming both — public grounding required, internal grounding in a separate field, ④falsifiability check (experimentally testable, quantitative). External outputs **structurally strip** "INTERNAL"
+- C) 社内秘密も論文も区別なく出力 / Mix internal and public freely
+- D) 公開データだけ使う / Use only public data
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+知財管理 + 科学的厳密性のため、**データ層分離 + Citations + 検証可能性チェック + 構造的タグ除去**が標準。
+
+IP + scientific rigor: **layer separation + Citations + falsifiability + structural tag stripping**.
+
+- **A 不正解**: 知財漏洩リスク。 / IP leakage risk.
+- **C 不正解**: 同上。 / Same.
+- **D 不正解**: 競争優位性を捨てる。 / Loses edge.
+
+**参照 / Reference:** IP isolation・citations・falsifiability
+</details>
+
+---
+
+## 問題 41 / Question 41
+
+**シナリオ / Scenario:**
+
+国際法律事務所の **e-Discovery** で、訴訟関連文書 200 万件から関連性のある文書を抽出。**特権文書（attorney-client privilege）** は絶対に開示してはならず、誤って開示すると訴訟戦略が崩壊します。
+
+International law firm's e-Discovery sifts 2M docs for relevance. **Attorney-client privilege docs must never be disclosed**; accidental release ruins strategy.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) 1 つのエージェントが関連性判定と特権判定を同時実行 / One agent does relevance + privilege jointly
+- B) **二段階パイプライン + 多重チェック**：①特権判定エージェント（高 recall 優先 — false negative を最小化、specialty: 弁護士間メール・work product・interview notes 等のパターン検出）、②関連性判定エージェント（特権文書は **入力に来ない** よう前段でフィルタ）、③人間レビュアーが特権マークを最終確認、④TAR（Technology Assisted Review）統計で **隠れた特権率**を推計し、サンプルレビューで担保 / **Two-stage + multi-check**: ①privilege detector (high-recall — minimize false negatives; expert in attorney-attorney email, work product, interview notes), ②relevance detector (privilege docs **never enter** its input — filtered upstream), ③human reviewer confirms privilege marks, ④TAR statistics estimate **latent privilege rate** with sample review
+- C) 関連文書だけ見て特権判定は省略 / Skip privilege check
+- D) 全文書を一斉に開示 / Disclose everything
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+特権漏洩は法律事務所の致命傷。**前段で物理的にフィルタ + 高 recall + 人間最終確認 + TAR 統計**。
+
+Privilege leak is fatal: **upstream physical filter + high recall + human final + TAR statistics**.
+
+- **A 不正解**: 同一エージェントの混在は漏洩リスク。 / Co-mingling risk.
+- **C 不正解**: 違法・致命的。 / Illegal, catastrophic.
+- **D 不正解**: 論外。 / Unthinkable.
+
+**参照 / Reference:** e-Discovery・attorney-client privilege・TAR
+</details>
+
+---
+
+## 問題 42 / Question 42
+
+**シナリオ / Scenario:**
+
+レギュレーター（金融・医療・環境）が頻繁に規則を更新します。法律事務所で **規制変更の継続的トラッキングエージェント**を構築。クライアントへの **影響度評価レポート**を自動生成し、変更の **発効日（effective date）** までに対応案を提示する必要があります。
+
+Regulators (finance / health / environment) issue frequent rule updates. A law firm builds an agent for **continuous regulatory tracking**, auto-generating client impact assessments before each **effective date**.
+
+**設問 / Question:**
+
+最も適切なエージェント設計はどれですか？ / Best design?
+
+- A) 月 1 回エージェントが手動で全規制を読み込む / Monthly manual full read
+- B) **イベント駆動型**：①官報・規制機関の RSS / API を **MCP リソース subscription** で監視（変更通知をリアルタイム受信）、②変更検知エージェントが新旧差分を抽出、③影響評価エージェントがクライアント別の影響を判定（クライアントの業種・規制ステータス・契約内容との照合）、④発効日カウントダウン付きでクライアント担当弁護士にハンドオフ。すべての追跡履歴は WORM で保管 / **Event-driven**: ①monitor official gazettes / agency APIs via **MCP resource subscription** (real-time updates), ②change-detection agent extracts old/new diff, ③impact-assessment agent maps to client-specific implications (industry / status / contracts), ④hand off to engagement attorney with effective-date countdown. All tracking history in WORM
+- C) 規制変更は無視 / Ignore changes
+- D) クライアントに自分で確認してもらう / Tell clients to track themselves
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+規制トラッキングは **イベント駆動 + 差分抽出 + 影響評価 + 発効日管理 + 監査保管** が標準。
+
+Regulatory tracking = **event-driven + diff extraction + impact assessment + effective-date management + audit retention**.
+
+- **A 不正解**: 月 1 ではタイムリー性ゼロ。 / Untimely.
+- **C 不正解**: 弁護過誤リスク。 / Malpractice risk.
+- **D 不正解**: 法律事務所の付加価値を捨てる。 / Loses value-add.
+
+**参照 / Reference:** Regulatory tracking・MCP subscriptions
+</details>
+
+---
+
+## 問題 43 / Question 43
+
+**シナリオ / Scenario:**
+
+M&A 案件の **デューデリジェンス**で、Claude が **VDR（Virtual Data Room）** の数千文書を分析。買い手 / 売り手それぞれに別の Claude エージェントが配置され、**情報壁（Chinese Wall）** を維持しなければなりません。
+
+In M&A due diligence, Claude analyzes thousands of VDR docs; **separate agents for buy-side and sell-side** must maintain **Chinese walls**.
+
+**設問 / Question:**
+
+最も適切な情報壁実装はどれですか？ / Best Chinese wall implementation?
+
+- A) 同じエージェントを順番に使う / One agent serially for both sides
+- B) **物理的隔離**：別組織契約 / 別 Anthropic 環境 / 別 API キー / 別 MCP サーバ / 別ストレージ。各サイドの **session_id** にサイドタグを付与し、コードレベルでクロス参照不可能化。法的にも「**別チーム / 別ベンダー**」として位置付け。**監査時に分離が立証可能** / **Physical isolation**: separate org agreements / Anthropic environments / API keys / MCP servers / storage. Side-tag every `session_id`; code-level cross-reference is impossible. Legally framed as "**separate teams / vendors**". Separation provable to audit
+- C) システムプロンプトで「相手側を見るな」 / Prompt: "don't peek the other side"
+- D) 情報壁は不要 / No Chinese wall
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+M&A 情報壁は **物理的隔離 + 法的位置付け + 監査可能性**で実現。プロンプトでは規制不適合。
+
+M&A walls = **physical isolation + legal framing + auditability**. Prompts are insufficient.
+
+- **A 不正解**: 規制違反 + 倫理違反。 / Regulatory + ethical breach.
+- **C 不正解**: 確率的、立証不能。 / Probabilistic, not provable.
+- **D 不正解**: 訴訟リスク甚大。 / Massive litigation risk.
+
+**参照 / Reference:** M&A Chinese walls・legal ethics
+</details>
+
+---
+
+## 問題 44 / Question 44
+
+**シナリオ / Scenario:**
+
+特許事務所で **先行技術調査（prior art search）** をエージェント化。発明書類 → 関連分野特定 → 既存特許 / 論文検索 → 類似性分析 → 特許性意見書ドラフト、というフロー。**専門的な誤判定は出願却下や訴訟敗訴**につながります。
+
+A patent firm builds an agent for prior-art search: invention disclosure → field identification → patent / paper search → similarity analysis → patentability opinion. **Expert errors cause rejection or litigation losses.**
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) 1 エージェントですべて処理 / One agent handles all
+- B) **特化サブエージェント + 弁理士レビュー**：①機械学習分野・薬学分野・機械工学分野など **分野別の検索エージェント**（各分野の検索戦略・データベース・術語に最適化）、②類似性分析は **構造化された請求項マッピング**（element-by-element）、③弁理士が **claim chart** を最終確認、④意見書は **テンプレート + 引用付き** で人間が承認後発行。エージェントは下書き専属 / **Specialist subagents + patent-attorney review**: ①field-specific search agents (ML, pharma, mech eng) tuned to each field's strategy / database / vocabulary, ②similarity = structured claim mapping (element-by-element), ③attorney finalizes the **claim chart**, ④opinion drafted via **template + citations**, issued only after human approval. Agents draft only
+- C) Claude に意見書を直接出させる / Have Claude issue the opinion
+- D) AI を使わず手作業 / Manual only
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+特許実務は **分野専門性 + claim chart + 弁理士最終承認**。LLM は下書き役。
+
+Patent practice = **field expertise + claim chart + attorney sign-off**. LLM drafts.
+
+- **A 不正解**: 分野横断は精度劣化。 / Cross-field drift.
+- **C 不正解**: 弁理士業法違反リスク。 / UPL risk.
+- **D 不正解**: 効率損失。 / Efficiency loss.
+
+**参照 / Reference:** Prior art・claim chart
+</details>
+
+---
+
+## 問題 45 / Question 45
+
+**シナリオ / Scenario:**
+
+金融機関の **AML（マネーロンダリング検知）** で、SAR（Suspicious Activity Report）の起草を Claude が補助。AML 担当者が最終承認するが、**起草過程で false positive が多すぎると担当者が疲弊**し、true positive を見落とすリスク。
+
+For AML, Claude drafts SARs (Suspicious Activity Reports); AML officers finalize. **Too many false positives fatigue officers** and they miss true positives.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) すべての疑わしい取引で SAR を起草させる / Draft a SAR for every suspicious tx
+- B) **重み付け閾値 + 動的キャリブレーション**：①取引リスクスコアに加え、**過去の類似取引のオフィサー判断結果**を学習に取り込み、起草対象を動的に絞る、②起草された SAR には **confidence + 主要根拠 3 点 + 反証 1 点**を必ず含め、オフィサーが **30 秒で判断**できる構造、③オフィサーフィードバックを **継続的に閾値調整**にフィードバックする運用ループ、④四半期ごとの過検出率 / 過小検出率レビュー / **Weighted threshold + dynamic calibration**: ①risk score + **historical officer outcomes for similar txs** narrow drafting, ②every draft includes **confidence + top-3 grounds + one counter-evidence** so officers decide in **30s**, ③officer feedback continuously tunes thresholds, ④quarterly review of over- vs under-detection rates
+- C) 閾値は固定 / Fix the threshold
+- D) すべての取引で人間レビュー / Human-review every tx
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+AML 運用は **オフィサー疲労を最小化しつつ true positive を逃さない**バランス。動的キャリブレーション + 構造化根拠が要点。
+
+AML balances officer fatigue and miss rate via **dynamic calibration + structured grounding**.
+
+- **A 不正解**: 過検出で疲労、ミス増。 / Over-alert fatigue.
+- **C 不正解**: 環境変化に追従できない。 / Static, drifts.
+- **D 不正解**: 不可能、コスト過大。 / Infeasible.
+
+**参照 / Reference:** AML・SAR・calibration
+</details>
+
+---
+
+## 問題 46 / Question 46
+
+**シナリオ / Scenario:**
+
+自動車製造ラインで **予知保全（predictive maintenance）** にエージェント導入。SCADA から振動センサー値を読み取り、異常パターンを検知すると保全計画と部品発注を提案します。**ISO 26262 ASIL-D（最高安全水準）** の対象機械なので、誤った保全推奨で事故が起きると人命にかかわります。
+
+An automotive line adopts predictive maintenance: read vibration sensors via SCADA, detect anomalies, propose maintenance + parts orders. The machinery is **ISO 26262 ASIL-D** (highest safety integrity); wrong recommendations risk lives.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) Claude の推奨を即座に実行 / Execute Claude's recommendation immediately
+- B) Claude は **Tier 1 トリアージ専属**：(i) 異常パターン検出と分類のみ、(ii) 保全推奨は **「物理的検証要 / 予防交換可 / 監視継続」** の 3 区分の構造化提案、(iii) 物理的検証要は **必ず保全エンジニア**が確認、(iv) 部品発注は人間承認必須、(v) 過去の判定 vs 実際の故障状況をフィードバックループに組み込み継続的に精度評価。**ASIL-D 機器の制御変更は LLM の責任範囲外** / Claude is **Tier-1 triage only**: (i) detection + classification, (ii) recommendation in 3 structured classes — **physical verification needed / preventive swap allowed / continued monitoring**, (iii) physical-verification cases **always go to a maintenance engineer**, (iv) parts ordering needs human approval, (v) outcomes vs predictions feed continuous accuracy review. **ASIL-D control changes are out of LLM scope**
+- C) Claude が部品発注を直接実行 / Have Claude order parts directly
+- D) 予知保全をやめる / Drop predictive maintenance
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+ISO 26262 ASIL-D では **LLM は意思決定者ではなくトリアージ補助**。物理検証 + 人間承認が標準。
+
+Under ISO 26262 ASIL-D, **LLM is triage aid, not decider**; physical verification + human approval are mandatory.
+
+- **A 不正解**: 安全性規格違反。 / Standard breach.
+- **C 不正解**: 人間承認なき発注は規制違反。 / Compliance breach.
+- **D 不正解**: 価値喪失。 / Loses value.
+
+**参照 / Reference:** ISO 26262・predictive maintenance
+</details>
+
+---
+
+## 問題 47 / Question 47
+
+**シナリオ / Scenario:**
+
+電子部品メーカーで **製品リコール調査**を Claude で支援。発生した不具合事例を製造ロット履歴・サプライヤーデータ・出荷記録と突合し、影響範囲を特定。**規制報告（CPSC・各国当局）** には正確な範囲特定が必須。
+
+An electronics maker uses Claude for **recall investigation**: cross-check defect cases with manufacturing lots / supplier data / shipping records to bound impact. **Regulatory reporting (CPSC, national authorities)** requires precise bounding.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) Claude が独断で影響範囲を確定 / Claude solely sets scope
+- B) **多段証拠統合 + 出所保持**：①各データソース（ERP・MES・供給品質・FA データ）に対して並列サブエージェント、②結果は **claim → source（ロット ID・装置 ID・出荷先）の構造化マッピング**で統合、③矛盾は明示し優先順位ルール（一次データ > 集計データ）で解決、④最終範囲は **品質保証部門と法務が承認**してから規制当局に報告、⑤継続調査で範囲拡大のシグナルがあれば再評価フローに入る / **Multi-source evidence + provenance**: ①parallel subagents per source (ERP / MES / supplier quality / failure analysis), ②merge as **claim → source (lot ID / equipment ID / shipping destination)**, ③surface conflicts; resolve with priority rules (primary > aggregate), ④Quality and Legal approve before regulatory submission, ⑤scope reopens if new signals emerge
+- C) 影響範囲を最大に広げて safe side / Maximally wide scope for "safety"
+- D) 範囲を最小限に絞ってコスト最小化 / Minimally narrow to save cost
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+リコール調査は **証拠統合 + 出所保持 + 矛盾解決 + 多部門承認**。範囲最大 / 最小は両方とも企業リスク。
+
+Recall investigation = **evidence merge + provenance + conflict resolution + multi-dept approval**. Max-wide / min-narrow are both wrong.
+
+- **A 不正解**: 規制不適合・訴訟リスク。 / Compliance + litigation risk.
+- **C 不正解**: コスト爆発・市場信頼失墜。 / Cost + reputation damage.
+- **D 不正解**: 安全リスク・後続リコールで信用失墜。 / Safety + reputation.
+
+**参照 / Reference:** Recall investigation・CPSC
+</details>
+
+---
+
+## 問題 48 / Question 48
+
+**シナリオ / Scenario:**
+
+グローバルサプライチェーンで、**地政学リスク（経済制裁・関税変更・港湾ストライキ）** に対する代替調達計画をエージェントで支援。リスク発生時に 24 時間以内に **代替サプライヤー候補と影響シミュレーション**を出すことが求められます。
+
+A global supply chain agent supports geopolitical-risk replanning (sanctions, tariff changes, port strikes); on triggers, 24-hour SLA to produce **alternative suppliers + impact simulation**.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) 平時から **常時稼働の監視エージェント**で世界各地のリスクシグナルを監視（ニュース・政府発表・港湾運行情報）、②シグナル検知時に **代替サプライヤー検索エージェント**を fan-out で起動（地域別・部品別）、③並列で **影響シミュレーションエージェント**（リードタイム・コスト・在庫影響）が動作、④すべての候補を **構造化スコアリング**（リスク・コスト・納期・コンプライアンス・既存契約）で優先順位付け、⑤調達責任者に **24 時間以内の意思決定**用ハンドオフ。OFAC / EU 制裁リストとの **自動照合**は必須 / Always-on signal monitor (news, government, port ops); on detection, fan-out **alternative-supplier search agents** (by region / part) and parallel **impact simulators** (lead time, cost, inventory). Score candidates **structurally** (risk, cost, ETA, compliance, existing contracts) for **24-hour decision** handoff. **OFAC / EU sanctions screening** is mandatory
+- B) リスクが起きてから手動で対応 / React manually post-event
+- C) 1 エージェントに毎日全部チェックさせる / One agent rechecks everything daily
+- D) 代替調達は不要 / No alternative sourcing
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+サプライチェーン地政学対応は **常時監視 + 並列調査 + 構造化スコアリング + 制裁チェック + 24h SLA** が標準。
+
+Geopolitical SCM = **always-on watch + parallel research + structured scoring + sanctions check + 24h SLA**.
+
+- **B 不正解**: 24h SLA 未達。 / Misses SLA.
+- **C 不正解**: 非効率。 / Inefficient.
+- **D 不正解**: ビジネス継続性を捨てる。 / No BCP.
+
+**参照 / Reference:** SCM resilience・sanctions
+</details>
+
+---
+
+## 問題 49 / Question 49
+
+**シナリオ / Scenario:**
+
+工場の **OT（Operational Technology）ネットワーク**は IT ネットワークから物理的に分離されています。Claude エージェントは IT 側で動き、OT 側のデータは **データダイオード経由**でしか入手できません（書き込み禁止・読み取りのみ）。
+
+A factory's **OT network** is physically separated from IT. Claude runs on IT side; OT data arrives only via a **data diode** (read-only).
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) Claude を OT 側で直接動かす / Run Claude inside OT
+- B) **IT 側で読み取り専用エージェント**を構築：①データダイオード経由で OT テレメトリを受信、②MCP サーバ（OT 側）は **read-only API** のみ公開、③IT 側 Claude は **書き込み系ツールを `allowed_tools` から完全除外**、④異常検知時の指示は **人間運用者経由で OT 側にコマンド入力**（人間が物理的にギャップを越える）、⑤すべての判定は IT 側 WORM ログに保存。**Purdue モデル**遵守 / Build a **read-only IT-side agent**: ①OT telemetry via data diode, ②OT-side MCP exposes **read-only API only**, ③IT-side Claude has **no write tools in `allowed_tools`**, ④on anomalies, instructions go via **human operators bridging the gap**, ⑤all judgments go to IT-side WORM logs. Compliant with **Purdue model**
+- C) データダイオードを取り外して双方向通信 / Remove the diode for two-way
+- D) Claude を使わない / Don't use Claude
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+OT/IT 分離（Purdue モデル）下では **読み取り専用エージェント + 書き込み不可 + 人間ブリッジ**が標準。データダイオードは物理的セキュリティの根幹。
+
+Under Purdue / OT-IT separation: **read-only agent + no writes + human bridge**. The data diode is core physical security.
+
+- **A 不正解**: OT 側に Claude を入れるのは攻撃面拡大。 / Attack-surface expansion.
+- **C 不正解**: セキュリティ設計を破壊。 / Destroys security.
+- **D 不正解**: 価値喪失。 / Loses value.
+
+**参照 / Reference:** Purdue model・OT/IT separation
+</details>
+
+---
+
+## 問題 50 / Question 50
+
+**シナリオ / Scenario:**
+
+家電メーカーの **製品サポート** で、Claude エージェントが顧客対応 + ファームウェア診断 + 修理予約を実行。ファームウェア更新は **物理製品にプッシュされる**ため、誤った更新は大量回収につながりかねません。
+
+A consumer-electronics support uses Claude for customer ops + firmware diagnostics + repair scheduling. Firmware updates **push to physical devices**; bad updates cause mass recall.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) Claude が直接ファームウェア更新を発火 / Claude triggers firmware updates directly
+- B) Claude には **ファームウェア更新の起票権限のみ**を与え（チケット作成）、更新の実発火は **品質保証チームの承認 + カナリアリリース（数百台）+ 数日のソーク + 段階拡大** という既存リリースパイプラインに従う。Claude は **アシスタント役**：症状から候補ビルドを推奨、関連 KB を検索、修理予約のスケジュール提案。**`PreToolUse` フック**で `dispatch_firmware` 等の高影響ツール呼び出しを **必ずチケット ID 紐付け** にし、未承認チケットは実行不可 / Grant Claude **only ticket-creation permission**; actual rollout follows the existing pipeline (QA approval + canary on hundreds of units + multi-day soak + graduation). Claude is **assistant**: suggest candidate builds from symptoms, retrieve KB, schedule repairs. A `PreToolUse` hook ties high-impact calls (e.g., `dispatch_firmware`) to a **ticket ID**; unapproved tickets cannot execute
+- C) Claude にすべての権限を与える / Grant Claude full power
+- D) 何も自動化しない / Automate nothing
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+物理製品への影響を伴う操作は **既存の承認・カナリア・ソークパイプラインを遵守**し、LLM はあくまで支援役。
+
+Operations affecting physical devices follow **existing approval / canary / soak pipelines**; LLM remains assistant.
+
+- **A 不正解**: ブリックリスク・大量回収。 / Brick risk.
+- **C 不正解**: 高影響操作の暴発。 / Catastrophic potential.
+- **D 不正解**: 効率損失。 / Inefficient.
+
+**参照 / Reference:** Firmware OTA・canary release・PreToolUse
+</details>
+
+---
+
 > **次のドメイン / Next domain:** [`domain2_tool_design_mcp.md`](./domain2_tool_design_mcp.md)
 

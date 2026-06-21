@@ -1101,4 +1101,704 @@ LLM tool selection depends heavily on **naming consistency**. `verb_object` snak
 
 ---
 
+## 問題 31 / Question 31
+
+**シナリオ / Scenario:**
+
+証券会社の **取引執行ツール** `submit_order(account_id, symbol, side, quantity, order_type, price?)` を MCP で公開。注文の **冪等性** と **レイテンシ最小化**（μs オーダー）が両立必要。
+
+A broker exposes `submit_order(account_id, symbol, side, quantity, order_type, price?)` via MCP. Idempotency and microsecond latency must coexist.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) `client_order_id`（クライアント生成 UUID）を必須引数とし、サーバ側で **24h TTL 付き dedup ストア**（Redis cluster）に保存。重複時は **ステータス API** `get_order(client_order_id)` で既存結果を返す。レイテンシ最適化のため、dedup チェックは **メモリ内**で先行し、永続化は非同期。約定済み注文は **不可逆**として明確化 / Require `client_order_id` (client UUID); server keeps a **24h TTL dedup store** (Redis cluster). Duplicates fetch existing result via `get_order(client_order_id)`. For latency, dedup is **in-memory first**; persistence is async. Filled orders are **immutable**
+- B) 冪等性は使わない / No idempotency
+- C) リトライ禁止 / Forbid retries
+- D) ランダム ID で十分 / Random IDs suffice
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+HFT/取引執行は **冪等キー + メモリ先行 dedup + 非同期永続化**。約定不可逆性を契約として明示。
+
+HFT execution = **idempotency key + in-memory dedup + async persistence**. Filled-order immutability is part of the contract.
+
+- **B 不正解**: 二重執行リスク。 / Double-execution.
+- **C 不正解**: ネットワーク断で機会損失。 / Lost opportunity.
+- **D 不正解**: クライアント側で重複検出できない。 / Client can't detect dup.
+
+**参照 / Reference:** Order management・idempotency
+</details>
+
+---
+
+## 問題 32 / Question 32
+
+**シナリオ / Scenario:**
+
+決済処理 MCP サーバ（PCI DSS 準拠）で、`refund(charge_id, amount, reason)` を実装中。返金は **元の請求の通貨と決済手段に従う**必要があり、部分返金や複数回返金が許される。
+
+A PCI DSS-compliant payment MCP implements `refund(charge_id, amount, reason)`. Refunds **must follow the original charge's currency and method**; partial / multiple refunds allowed.
+
+**設問 / Question:**
+
+最も適切な API 設計はどれですか？ / Best API design?
+
+- A) クライアントから currency と payment_method を再受け取り / Re-pass currency and method from client
+- B) サーバ側で `charge_id` から **元請求の通貨・決済手段・残金返金可能額**を取得し、引数として再受信しない（信頼境界の整合）。**返金累計が元請求額を超えない** ことをサーバ側でアトミックに検証（DB 排他ロックまたは `WHERE remaining >= amount` の条件付き更新）。返金履歴はすべて WORM ログ / Server resolves currency / method / remaining-refundable from `charge_id`; never re-takes them from the client (trust boundary). Atomically verify **cumulative refund ≤ original** server-side (row-lock or `WHERE remaining >= amount` conditional update). Refund history goes to WORM logs
+- C) クライアント任せ / Trust client
+- D) 返金は禁止 / Forbid refunds
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+返金は **サーバを真実の源**にし、整合性チェックをアトミック、WORM 監査が定石。
+
+Refund truth lives **server-side** with atomic checks and WORM audit.
+
+- **A 不正解**: 改ざんリスク。 / Tamper risk.
+- **C 不正解**: 同上 + 整合性破綻。 / Integrity breakage.
+- **D 不正解**: 機能放棄。 / Loses function.
+
+**参照 / Reference:** Payments・PCI DSS・refund design
+</details>
+
+---
+
+## 問題 33 / Question 33
+
+**シナリオ / Scenario:**
+
+KYC 検証 MCP ツール `verify_identity(documents[], biometric?)` で、検証結果は **数秒〜数分**かかります（外部信用機関・OCR・生体認証マッチ）。Claude エージェントから直接呼ぶとタイムアウトしがち。
+
+A KYC tool `verify_identity(documents[], biometric?)` takes seconds to minutes (external bureaus, OCR, biometric match). Direct calls from Claude often time out.
+
+**設問 / Question:**
+
+最も適切な API パターンはどれですか？ / Best API pattern?
+
+- A) 60 秒以上応答しないので Claude タイムアウトに合わせる / Hold the call for >60s
+- B) ツールは即時に `{ verification_id, status: "pending" }` を返し、`get_verification_status(verification_id)` ポーリングまたは MCP `notifications` で完了通知。完了時のレスポンスは `{ status, risk_score, decision_factors[], evidence_links[] }` の構造化形式。**SLA メタデータ**として推定完了時刻も返却 / Tool returns `{ verification_id, status: "pending" }` immediately; client polls `get_verification_status(verification_id)` or receives MCP `notifications`. Completion returns `{ status, risk_score, decision_factors[], evidence_links[] }`. Include **SLA metadata** (estimated completion time)
+- C) すべて同期で待つ / Always sync wait
+- D) 5 秒で諦める / Give up after 5s
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+長時間処理は **非同期 + ポーリング/通知 + SLA メタデータ**で疎結合に。
+
+Long ops = **async + polling/notifications + SLA metadata**.
+
+- **A 不正解**: タイムアウト不可避。 / Timeout inevitable.
+- **C 不正解**: 同上。 / Same.
+- **D 不正解**: 業務破綻。 / Operationally broken.
+
+**参照 / Reference:** Async API・MCP notifications
+</details>
+
+---
+
+## 問題 34 / Question 34
+
+**シナリオ / Scenario:**
+
+外貨建てデリバティブの **時価評価**を取得する MCP ツール `get_mark_to_market(trade_id, valuation_date)` で、**マーケットデータの版数**（公式営業日終値 vs 中間値）を厳密に管理する必要があります。
+
+A derivatives mark-to-market MCP `get_mark_to_market(trade_id, valuation_date)` must strictly version market-data **(official EOD vs intraday)**.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) 引数に `data_version: enum["official_eod_v1", "official_eod_v2", "intraday_snapshot"]` と `data_timestamp: ISO8601` を必須化。レスポンスにも実際に使った版数を含める。**監査用にデータソースのチェックサム / バージョン**もメタデータで返却。同じ引数で常に同じ結果（決定論）を保証 / Require `data_version: enum[...]` and `data_timestamp: ISO8601`; response echoes the version used and includes a **source checksum / version** in metadata. Same arguments always produce same result (determinism)
+- B) サーバが勝手に最新を選ぶ / Server picks latest
+- C) クライアントが値を信じる / Trust client values
+- D) 評価は手動 / Manual valuation
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+時価評価は **データ版数を契約に明示 + 決定論的再現**が監査要件。
+
+Mark-to-market = **explicit data version in contract + deterministic reproducibility** for audit.
+
+- **B 不正解**: 監査再現性なし。 / No reproducibility.
+- **C 不正解**: 信頼境界違反。 / Trust violation.
+- **D 不正解**: 自動化価値喪失。 / Loses value.
+
+**参照 / Reference:** Versioned data sources・determinism
+</details>
+
+---
+
+## 問題 35 / Question 35
+
+**シナリオ / Scenario:**
+
+銀行 KYC で複数の **外部信用情報機関**（米：Equifax / TransUnion / Experian、国際：Refinitiv WorldCheck）の MCP ツールを統合。各機関で結果が異なる場合があります。
+
+KYC integrates multiple **external bureaus** (Equifax / TransUnion / Experian / WorldCheck) via MCP. Results often differ.
+
+**設問 / Question:**
+
+最も適切な統合設計はどれですか？ / Best integration?
+
+- A) 1 つの機関だけ使う / Use one bureau
+- B) **多源照会 + 統合判定**：`compare_kyc_sources(applicant_id)` ツールが内部で並列に各機関を照会、結果を **構造化マージ**（一致 / 部分一致 / 不一致を明示）して返却。コーディネーターは矛盾を **構造化エラー**（`{ conflict_fields: [], severity, recommended_action: enum }`）として認識し、必要に応じて人間レビュー。各機関のデータ更新タイムスタンプも保持 / **Multi-source + merge**: a `compare_kyc_sources(applicant_id)` tool queries bureaus in parallel and returns a **structured merge** (agree / partial / disagree). Coordinator handles conflicts via a **structured error** (`{ conflict_fields, severity, recommended_action }`); human review when warranted. Preserve per-bureau update timestamps
+- C) すべての機関の結果を Claude にそのまま渡す / Pass all raw to Claude
+- D) 機関を変えながらランダムに照会 / Rotate bureaus randomly
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+多源データは **構造化マージ + 矛盾の明示 + ハンドオフ**でレジリエントに。
+
+Multi-source = **structured merge + explicit conflicts + handoff**.
+
+- **A 不正解**: false negative リスク。 / FN risk.
+- **C 不正解**: トークン浪費・コンテキスト劣化。 / Wasteful + drift.
+- **D 不正解**: 不一貫。 / Inconsistent.
+
+**参照 / Reference:** KYC・multi-source
+</details>
+
+---
+
+## 問題 36 / Question 36
+
+**シナリオ / Scenario:**
+
+電子カルテ統合のため、**HL7 FHIR 準拠 MCP サーバ**を構築。`get_patient(patient_id)`、`search_observations(patient_id, code, date_range)` などを提供。FHIR Resource は数百種類あり、すべて公開すると tools/list が肥大化。
+
+A FHIR-compliant MCP server exposes `get_patient`, `search_observations`, etc. FHIR has hundreds of Resources; exposing all bloats `tools/list`.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) 全 FHIR Resource を 1 ツールずつ公開 / One tool per Resource
+- B) **ユースケースに対応した粗粒度ツール**（5〜15 個）として再構成：`get_clinical_summary`, `search_diagnostic_results`, `get_medications`, `find_encounters`, `get_immunizations` など。各ツール内部で複数の FHIR Resource を組み合わせる。詳細な Resource 単位のアクセスは **separate technical MCP server** に分離（高度ユーザー専用）。標準クエリは tools、可変条件のクエリは prompts として提供 / Reorganize into **5–15 use-case-grained tools**: `get_clinical_summary`, `search_diagnostic_results`, `get_medications`, `find_encounters`, `get_immunizations`. Each composes multiple Resources internally. Resource-level access lives on a **separate technical MCP server** for power users. Use prompts for templated variable queries
+- C) FHIR は使わず独自プロトコル / Skip FHIR; custom protocol
+- D) MCP では医療データを扱えない / MCP can't handle healthcare data
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+ヘルスケア MCP は **ユースケース粗粒度 + 用途別サーバ分離 + prompts 活用**で精度と可読性を両立。
+
+Healthcare MCP = **use-case granularity + role-segregated servers + prompts** for clarity and accuracy.
+
+- **A 不正解**: tool 多すぎで精度低下。 / Too many → drift.
+- **C 不正解**: 標準を捨てて互換性喪失。 / Loses interop.
+- **D 不正解**: 事実誤認。 / Wrong.
+
+**参照 / Reference:** HL7 FHIR・MCP scope
+</details>
+
+---
+
+## 問題 37 / Question 37
+
+**シナリオ / Scenario:**
+
+院内薬局システムの MCP ツール `prescribe_medication`。**処方は医師の裁量**であり、Claude が直接処方確定してはいけない。
+
+In a hospital pharmacy MCP, `prescribe_medication` — prescription is the physician's purview; Claude must never finalize.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) ツールは `propose_prescription(...)` という名前で、サーバ側で **必ず "draft" ステータス**にして保存。実際の処方確定は **別 API**（`approve_prescription` — 認証された医師のみ呼び出し可能）。MCP からは `approve_*` 系を **公開しない**（医療免許のないシステムから呼ぶこと自体不可能化）。Claude には draft 作成のみ許可 / Tool is named `propose_prescription(...)`; server forces "draft" status. Actual finalization is a **separate API** `approve_prescription` callable **only by authenticated physicians**. **Don't expose `approve_*`** via MCP (impossible to call without a license). Claude is restricted to drafting
+- B) Claude に処方確定権限を与える / Grant Claude finalization
+- C) システムプロンプトで「処方しない」と書く / Prompt: "do not prescribe"
+- D) MCP は医療現場では使えない / MCP unsuitable for clinical
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+医療免許の必要な操作は **API レイヤーで物理的に分離**し、Claude には決して公開しない。
+
+Licensed operations = **physically separated APIs**; never exposed to Claude.
+
+- **B 不正解**: 医師法違反リスク。 / Practicing without license.
+- **C 不正解**: プロンプトでは規制不適合。 / Probabilistic.
+- **D 不正解**: 事実誤認。 / Wrong.
+
+**参照 / Reference:** Clinical scope of practice・MCP boundaries
+</details>
+
+---
+
+## 問題 38 / Question 38
+
+**シナリオ / Scenario:**
+
+製薬の **臨床試験 EDC（Electronic Data Capture）** に MCP 統合。FDA 21 CFR Part 11 で **電子署名** と **監査証跡** が義務。`update_subject_data(study_id, subject_id, field, value)` を実装中。
+
+Pharma EDC integration via MCP. FDA 21 CFR Part 11 mandates **e-signature** + **audit trail**. Implementing `update_subject_data(study_id, subject_id, field, value)`.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **電子署名フィールド必須**：`update_subject_data(..., reason, signer_credentials, signed_hash)`。サーバ側で署名検証 + WORM ログに（who/what/when/why/before/after/SHA-256）保存。署名なし呼び出しは **400 拒否**。同一の `study_id+subject_id+field` への変更は **全履歴保持**（上書きなし）、最新値は計算で導出 / **Require signature**: `update_subject_data(..., reason, signer_credentials, signed_hash)`. Server verifies signature; WORM log records who/what/when/why/before/after/SHA-256. Unsigned calls → **400 reject**. Changes to the same `study_id+subject_id+field` keep **full history** (no overwrite); current value is derived
+- B) 署名なしで更新可 / Allow unsigned updates
+- C) 監査証跡を取らない / Skip audit trail
+- D) MCP は規制環境では不可 / MCP can't be used in regulated environments
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+21 CFR Part 11 は **電子署名 + 完全な監査証跡 + 不可逆履歴**が必須。
+
+21 CFR Part 11 = **e-sig + complete audit trail + immutable history**.
+
+- **B 不正解**: 規制違反。 / Breach.
+- **C 不正解**: 同上。 / Same.
+- **D 不正解**: 設計次第で対応可能。 / Doable with proper design.
+
+**参照 / Reference:** FDA 21 CFR Part 11・EDC
+</details>
+
+---
+
+## 問題 39 / Question 39
+
+**シナリオ / Scenario:**
+
+医療画像の MCP ツール `get_image(study_uid, series_uid, instance_uid)` が **DICOM 画像（数百 MB）** を返します。コンテキストに直接ロードはできません。
+
+A DICOM image MCP `get_image(...)` returns hundreds of MB; can't load into context.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) Claude のコンテキストに base64 で全部入れる / Base64-load everything
+- B) ツールは画像本体ではなく **(i) 一時的な署名付き URL**（短時間有効・テナント制限）、**(ii) 画像メタデータ**（撮影条件・サイズ・部位）、**(iii) 既往の AI 解析結果**（あれば）を返す。Claude のマルチモーダル機能で画像を扱う場合は、**サムネイル / 関心領域**のみを別ツールで取得し送信。Full DICOM は人間放射線科医のビューワで参照 / Return **(i) short-lived signed URL** (tenant-scoped), **(ii) image metadata**, **(iii) prior AI findings if any**. For Claude's multimodal use, fetch **thumbnails / ROIs** via a separate tool. Full DICOM goes to the radiologist's viewer
+- C) 画像は MCP で扱えない / DICOM not via MCP
+- D) Claude はずっと URL だけ受け取る / Always URL only
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+大容量医療データは **署名付き URL + メタデータ + 既往解析 + 必要時にサムネイル / ROI** が定石。
+
+Large medical data = **signed URL + metadata + prior findings + on-demand thumbnail / ROI**.
+
+- **A 不正解**: トークン爆発・実用不能。 / Infeasible.
+- **C 不正解**: 過剰反応。 / Overreaction.
+- **D 不正解**: マルチモーダル機能を使えば良いケースもある。 / Misses use cases.
+
+**参照 / Reference:** DICOM・PACS integration
+</details>
+
+---
+
+## 問題 40 / Question 40
+
+**シナリオ / Scenario:**
+
+医療保険の **保険金請求コード化** で、ICD-10 と CPT を出力する MCP ツール。**コードの間違いは保険拒否や監査リスク**。
+
+Insurance coding via MCP returning ICD-10 and CPT. **Wrong codes cause denial or audit risk.**
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) クライアントが任意の文字列を渡せる / Any string accepted
+- B) JSON Schema で **`icd10` を `pattern: "^[A-TV-Z][0-9][0-9AB]\\.?[0-9A-TV-Z]{0,4}$"` に制約**、**`cpt` を 5 桁数値**に制約。サーバ側で **コードの存在検証**（最新コードブックとの照合）、**修飾子（modifier）の組み合わせ規則**を確認、不正時は構造化エラー `{ errorCategory: "invalid_code_combination", invalid_pairs: [...] }`。**コードブック版数**もレスポンスメタデータに含める（時期適合性の監査用） / Constrain via JSON Schema (`icd10` pattern, `cpt` 5-digit numeric); server validates **existence** against the current codebook and **modifier combination rules**; invalid combos return `{ errorCategory: "invalid_code_combination", invalid_pairs: [...] }`. Include **codebook version** in metadata for time-period audit
+- C) 出力検証はしない / No output validation
+- D) コード判定は手動 / Manual coding
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+医療コード化は **構文 schema + 存在検証 + 組み合わせ規則 + 版数管理**。
+
+Medical coding = **schema + existence check + combination rules + version tracking**.
+
+- **A 不正解**: 検証ゼロ。 / No validation.
+- **C 不正解**: 同上。 / Same.
+- **D 不正解**: 自動化価値喪失。 / Loses value.
+
+**参照 / Reference:** ICD-10・CPT・claim coding
+</details>
+
+---
+
+## 問題 41 / Question 41
+
+**シナリオ / Scenario:**
+
+法律事務所の **e-Discovery 検索 MCP ツール** `discover_documents(query, custodians[], date_range)`。100 万件のメール・契約・チャットログを横断検索。**特権文書フラグ**を尊重しなければなりません。
+
+An e-Discovery MCP `discover_documents(query, custodians[], date_range)` searches 1M emails / contracts / chats; **must respect privilege flags**.
+
+**設問 / Question:**
+
+最も適切なツール設計はどれですか？ / Best tool design?
+
+- A) すべての文書を返す / Return everything
+- B) サーバ側で **privilege filter を強制**し、特権マーク付き文書を返却から自動除外。返却は `{ documents: [...], total_matched, total_excluded_by_privilege, privilege_filter_version }` のように **除外件数を明示**（後から数値整合性を監査可能）。**redact 必須箇所**（PII、SSN、口座番号）はサーバで自動マスク。Claude が見るのは **マスク済みコンテンツ**のみ / Server **enforces privilege filter**; flagged docs auto-excluded. Return `{ documents, total_matched, total_excluded_by_privilege, privilege_filter_version }` so exclusion counts are auditable. Mandatory **redactions** (PII / SSN / account numbers) applied server-side; Claude sees only **masked content**
+- C) 特権マークを Claude に判断させる / Have Claude judge privilege
+- D) 特権文書も含めて返却 / Return privileged docs too
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+特権・PII は **サーバ側で物理的にフィルタ + マスク + 監査用カウント**。
+
+Privilege / PII = **server-side physical filter + masking + audit counts**.
+
+- **A 不正解**: 漏洩リスク。 / Leak risk.
+- **C 不正解**: LLM 判断は監査不適合。 / Not audit-grade.
+- **D 不正解**: 致命的。 / Catastrophic.
+
+**参照 / Reference:** e-Discovery・privilege・redaction
+</details>
+
+---
+
+## 問題 42 / Question 42
+
+**シナリオ / Scenario:**
+
+法務 MCP の `find_similar_clauses(clause_text, jurisdiction)` ツールで、過去契約から類似条項を検索。**意味的類似度（vector search）と法的類似度**は別物で、混同すると誤った先例を引用するリスク。
+
+A `find_similar_clauses(clause_text, jurisdiction)` tool searches similar past clauses. **Semantic similarity** and **legal similarity** are not the same; conflation cites wrong precedents.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) ベクトル検索だけで十分 / Vector search alone
+- B) **多次元類似度**：(i) 意味的類似度（embedding ベクトル）、(ii) 法的類型（条項タイプ：限定責任 / 補償 / 知財 / etc）、(iii) 管轄区分、(iv) 業界文脈、(v) 当事者類型、それぞれ独立にスコア化して返却。Claude には **複数次元のスコアと根拠**を渡し、最終判断は弁護士。`legal_similarity_score < threshold` の結果は **意味的に似ていても法的に異なる**ことを明示警告 / **Multi-dim similarity**: (i) semantic (embedding), (ii) legal class (limited-liability / indemnity / IP / etc.), (iii) jurisdiction, (iv) industry, (v) party type — independently scored. Hand Claude **multi-dim scores + grounds**; lawyers decide. When `legal_similarity_score < threshold`, explicitly warn "semantically similar, legally different"
+- C) 法的類似度は無視 / Ignore legal similarity
+- D) すべて手動 / Manual only
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+法務類似性は **多次元** で扱い、意味と法的を分離して提示。
+
+Legal similarity is **multi-dimensional**; separate semantic from legal.
+
+- **A 不正解**: 誤った先例引用リスク。 / Wrong-precedent risk.
+- **C 不正解**: 法務不適合。 / Legally inadequate.
+- **D 不正解**: 自動化価値喪失。 / Loses value.
+
+**参照 / Reference:** Legal NLP・precedent retrieval
+</details>
+
+---
+
+## 問題 43 / Question 43
+
+**シナリオ / Scenario:**
+
+特許検索 MCP ツール `prior_art_search(claim_text, classes[], date_before)`。USPTO・EPO・JPO・WIPO データベースを横断検索しますが、**最新更新タイムスタンプ**が異なるため日付の取り扱いが重要。
+
+A patent prior-art MCP `prior_art_search(claim_text, classes[], date_before)` spans USPTO / EPO / JPO / WIPO; **last-updated timestamps differ** across sources.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) 結果を 1 つの配列にマージ / Merge into one array
+- B) 結果を **データソース別にグルーピング**して返却：`{ uspto: { last_updated, results: [...] }, epo: {...}, jpo: {...}, wipo: {...} }`。各ソースの **インデックス更新時刻**を明示し、Claude が「USPTO は 2026-04-01 まで反映、EPO は 2026-04-15 まで反映」のような **時系列正確性**を保てるようにする。重複特許（ファミリー）は **構造化リレーション**で示す / Group by source: `{ uspto: { last_updated, results }, epo: {...}, jpo: {...}, wipo: {...} }`. Each source's **index timestamp** is explicit so Claude preserves time-series accuracy. Patent families: surfaced via **structured relations**
+- C) 重複特許は無視 / Ignore duplicates
+- D) 1 つの庁だけ検索 / One office only
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+特許 prior-art は **ソース別グルーピング + インデックス更新時刻 + ファミリー関係**で正確性を担保。
+
+Patent prior-art = **per-source grouping + index timestamps + family relations**.
+
+- **A 不正解**: 時系列正確性が失われる。 / Loses temporal accuracy.
+- **C 不正解**: ファミリー無視は分析不能。 / Family is critical.
+- **D 不正解**: グローバル検索に不適。 / Inadequate.
+
+**参照 / Reference:** Patent search・family relations
+</details>
+
+---
+
+## 問題 44 / Question 44
+
+**シナリオ / Scenario:**
+
+法務文書の **redaction（黒塗り）** MCP ツール。原本テキストから機密情報を除去した版を生成しますが、**完全可逆な復号は禁止**（クライアント上での誤復元リスク）。
+
+A redaction MCP tool removes sensitive info; **fully reversible decoding is forbidden** (accidental restoration risk on client).
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) Base64 で残しておく / Keep base64
+- B) **不可逆置換**：機密箇所を `[REDACTED-PII-1]` のようなトークンに置換し、原本へのマッピングは **サーバ側の高セキュリティ store にのみ存在**（クライアント側に決して返さない）。監査時の復元はサーバ管理者の認証 + 監査ログ付きでのみ可能。redaction された文書のチェックサムも返却（改ざん検知用） / **Irreversible substitution**: replace sensitive spans with tokens like `[REDACTED-PII-1]`; mappings live **only in a server-side secure store** (never returned to clients). Admin authn + audit log gate restoration. Return a checksum for tamper detection
+- C) クライアントに復号鍵を渡す / Hand decryption key to client
+- D) Redaction しない / Don't redact
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+法務 redaction は **不可逆 + マッピング非開示 + 監査付き復元**。
+
+Legal redaction = **irreversible + non-disclosed mapping + audited recovery**.
+
+- **A 不正解**: 復元容易、漏洩リスク。 / Easy restore.
+- **C 不正解**: 同上。 / Same.
+- **D 不正解**: 法的義務違反。 / Compliance breach.
+
+**参照 / Reference:** Legal redaction
+</details>
+
+---
+
+## 問題 45 / Question 45
+
+**シナリオ / Scenario:**
+
+法律事務所の **citation verification（引用検証）** MCP ツール。Claude が出した判例引用が **実在するか・正しい論点で引用されているか**を検証。**幻覚した判例を含む書面を提出すると懲戒対象**になる事例（米国弁護士の実例）あり。
+
+A citation verification MCP checks Claude's case-law cites against existence + correct holding. **Fabricated citations have led to attorney sanctions** (real US incidents).
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) Claude を信用 / Trust Claude
+- B) `verify_citation(citation_string)` ツールが (i) **権威 DB（Westlaw / LexisNexis / 公式判例集）と照合**、(ii) 判例の現状（覆された / 制限的判例 / 引用継続）も返却、(iii) Claude が引用した holding と DB の holding を **構造化比較**、(iv) 不一致は **`hallucination_detected: true` + 真正引用候補**を返す。書面提出前に **すべての引用を verify 必須**（pipeline gate） / `verify_citation(citation_string)` (i) cross-checks **authoritative DBs** (Westlaw / LexisNexis / official reporters), (ii) returns case status (overruled / distinguished / good law), (iii) **structurally compares** Claude's holding vs DB's holding, (iv) on mismatch returns `hallucination_detected: true` + candidate authentic cites. **Verify all citations** before filing (pipeline gate)
+- C) 引用は検証しない / Skip verification
+- D) AI を使わない / Don't use AI
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+幻覚引用は弁護士懲戒に直結。**権威 DB 照合 + 状態確認 + 構造化比較 + パイプラインゲート**。
+
+Hallucinated cites trigger sanctions: **authoritative DB + status + structural compare + pipeline gate**.
+
+- **A 不正解**: 信用は規制不適合。 / Insufficient.
+- **C 不正解**: 同上。 / Same.
+- **D 不正解**: 過剰反応。 / Overreaction.
+
+**参照 / Reference:** Legal citation verification・attorney sanctions
+</details>
+
+---
+
+## 問題 46 / Question 46
+
+**シナリオ / Scenario:**
+
+工場の **MES（Manufacturing Execution System）** に MCP ゲートウェイを構築。`get_production_status(line_id)`、`record_quality_event(line_id, event_type, severity)` などを公開。**生産制御コマンド**は MCP からは出さない方針。
+
+A factory MES MCP gateway exposes `get_production_status(line_id)`, `record_quality_event(line_id, event_type, severity)`. **Production-control commands are NOT exposed**.
+
+**設問 / Question:**
+
+最も適切なツール構成はどれですか？ / Best tool composition?
+
+- A) **Read-only + Append-only ツールに限定**：`get_*` 系（読み取り）と `record_*` 系（追記）のみ。`stop_line`、`start_line`、`change_recipe` など **制御系コマンドは MCP で公開しない**。Claude にそのような能力を持たせない。**Purdue Level 3（製造運用管理）止まり**で、Level 1–2（制御）には絶対に降りない設計 / **Read-only + append-only**: `get_*` (read) and `record_*` (append) only. **No control commands** (`stop_line`, `start_line`, `change_recipe`) exposed via MCP — Claude lacks them by design. Stays at **Purdue Level 3** (MES ops); never descends to Levels 1–2 (control)
+- B) すべての制御コマンドを公開 / Expose all controls
+- C) 制御コマンドを Claude に頼む / Ask Claude for controls
+- D) Claude を MES 統合に使わない / Don't integrate
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+OT/IT 統合は **読み取り + 追記のみ + Purdue Level 制限**で安全境界を物理的に確保。
+
+OT/IT integration = **read + append only + Purdue level limits** for physical safety.
+
+- **B 不正解**: 大事故リスク。 / Catastrophic risk.
+- **C 不正解**: 同上。 / Same.
+- **D 不正解**: 価値喪失。 / Loses value.
+
+**参照 / Reference:** Purdue model・MES integration
+</details>
+
+---
+
+## 問題 47 / Question 47
+
+**シナリオ / Scenario:**
+
+サプライチェーン MCP の `find_alternative_supplier(part_number, region_excluded[])` ツールで代替調達先を検索。**OFAC 制裁・各国輸出規制**に違反する取引先は絶対に推奨してはなりません。
+
+An SCM `find_alternative_supplier(part_number, region_excluded[])` must never suggest **OFAC-sanctioned / export-restricted** parties.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) Claude に「制裁国は除外」と伝える / Tell Claude "exclude sanctioned"
+- B) ツール内部で **制裁リスト自動照合**：(i) 候補サプライヤーごとに OFAC SDN・EU sanctions・UK sanctions・国内輸出管理リストとマッチング、(ii) ヒットしたら **結果から物理的に除外**（Claude には見せない）、(iii) 除外件数を `{ excluded_by_sanctions: N, sanctions_lists_used: [...], list_versions: {...} }` でメタデータ返却。リスト版数は監査用 / Inside the tool, **auto-screen against sanctions** (OFAC SDN, EU, UK, national export-control lists) per candidate; **physically exclude hits** (never shown to Claude). Return `{ excluded_by_sanctions: N, sanctions_lists_used: [...], list_versions: {...} }`. List versions are for audit
+- C) ヒットしたら警告だけ / Just warn on hit
+- D) 制裁チェックは別作業 / Separate task
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+制裁照合は **ツール内部で物理的に除外 + 版数記録**。Claude に判断を委ねるのは規制不適合。
+
+Sanctions screening = **physical exclusion in-tool + version logging**. LLM judgment is non-compliant.
+
+- **A 不正解**: 確率的、規制不適合。 / Probabilistic.
+- **C 不正解**: Claude に見えると誤推奨リスク。 / Risk of inadvertent suggestion.
+- **D 不正解**: 統合性欠如。 / Lacks integration.
+
+**参照 / Reference:** OFAC SDN・export controls
+</details>
+
+---
+
+## 問題 48 / Question 48
+
+**シナリオ / Scenario:**
+
+工場 IoT センサー MCP `query_sensor(sensor_id, metric, time_range)` で、毎秒 1000 件のテレメトリを蓄積する **時系列データ**にクエリ。クエリ範囲が広いとレスポンスが膨大。
+
+A factory IoT MCP `query_sensor(...)` queries time-series data at 1000 ev/s; wide ranges return massive responses.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) **集約レベルパラメータ**を必須化：`query_sensor(sensor_id, metric, time_range, aggregation: enum["raw","1m_avg","5m_avg","1h_avg","1d_avg"], statistics: enum["avg","min","max","p95","stddev"][])`。ダウンサンプリングをサーバ側で実施。raw データは **30 分以下のレンジ**に制限。応答サイズと TTL も明示 / Require **aggregation level**: `query_sensor(..., aggregation: enum["raw","1m_avg","5m_avg","1h_avg","1d_avg"], statistics: enum[...])`. Server downsamples; raw is restricted to **≤30-min ranges**. Response size and TTL declared
+- B) すべて raw で返す / Always raw
+- C) 1 件ずつ取得 / One sample per call
+- D) IoT データは MCP では扱えない / Not via MCP
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: A**
+
+時系列クエリは **集約レベル + 範囲制限 + サーバ側ダウンサンプリング**で実用化。
+
+Time-series APIs = **aggregation level + range limits + server downsampling**.
+
+- **B 不正解**: コンテキスト爆発。 / Blows up context.
+- **C 不正解**: 1000 ev/s では実用不能。 / Infeasible.
+- **D 不正解**: 事実誤認。 / Wrong.
+
+**参照 / Reference:** Time-series API design
+</details>
+
+---
+
+## 問題 49 / Question 49
+
+**シナリオ / Scenario:**
+
+製造業の BOM（Bill of Materials）検索 MCP で、複数階層の部品ツリーを返したい。深いツリーは数千〜数万ノードになる。
+
+An MES BOM MCP returns multi-level part trees that can be thousands–tens of thousands of nodes deep.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) ツリー全体を 1 回で返す / Return the whole tree at once
+- B) **階層的ナビゲーション**ツール群：`get_bom_root(product_id)`（ルート + 直下子）、`get_bom_children(node_id, depth: 1..3)`（限定深さで子取得）、`search_bom(product_id, part_number)`（特定部品の経路）。Claude が **必要な部分だけを段階的に展開**できるようにする。各レスポンスにパス（breadcrumb）を含めて文脈保持 / **Hierarchical navigation tools**: `get_bom_root(product_id)` (root + direct children), `get_bom_children(node_id, depth: 1..3)` (limited depth), `search_bom(product_id, part_number)` (path to a part). Claude can **expand only what's needed**; responses include breadcrumbs for context
+- C) ツリーは扱わない / No trees
+- D) ランダムサブツリーを返す / Random subtree
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+階層構造は **ナビゲーション分割 + 限定深さ + breadcrumb** で扱う。
+
+Hierarchical structures use **navigation tools + limited depth + breadcrumbs**.
+
+- **A 不正解**: 規模で破綻。 / Doesn't scale.
+- **C 不正解**: 機能放棄。 / Loses function.
+- **D 不正解**: ナビゲーション不能。 / Unnavigable.
+
+**参照 / Reference:** Hierarchical API navigation
+</details>
+
+---
+
+## 問題 50 / Question 50
+
+**シナリオ / Scenario:**
+
+リコール管理 MCP ツール `record_recall_decision(product_id, scope, severity, decision)`。決定は **品質保証部門 + 法務部門 + 規制対応部門**の合議制で、単一ユーザーで commit できない運用。
+
+A recall-decision MCP `record_recall_decision(product_id, scope, severity, decision)` requires **Quality + Legal + Regulatory** consensus; no single user can commit.
+
+**設問 / Question:**
+
+最も適切な設計はどれですか？ / Best design?
+
+- A) 1 ユーザーで commit 可 / Single-user commit
+- B) **多者承認ワークフロー**：(i) ツールは初回呼び出しで `decision_id` と `pending_approvals: [Quality, Legal, Regulatory]` を作成、(ii) 各部門の `approve_recall_decision(decision_id, role, signer_credentials, signed_hash)` ツールで承認、(iii) 全承認が揃ったときのみ `decision_status: "committed"` に遷移、(iv) すべての承認 / 拒否は WORM ログ。**部分承認状態でも追跡可能**にし、規制報告期限との整合をモニタ / **Multi-party approval**: (i) initial call creates `decision_id` + `pending_approvals: [Quality, Legal, Regulatory]`, (ii) each role calls `approve_recall_decision(decision_id, role, signer_credentials, signed_hash)`, (iii) only when all approve does `decision_status` flip to `"committed"`, (iv) all approvals/denials in WORM log. **Partial states are trackable**; monitor against regulatory deadlines
+- C) Claude が代理承認 / Claude approves on behalf
+- D) 合議制を諦める / Give up consensus
+
+<details>
+<summary>正解と解説 / Answer & Explanation</summary>
+
+**正解 / Answer: B**
+
+リコール決定は **多者承認 + 部分状態追跡 + WORM 監査**で運用する。
+
+Recall decisions = **multi-party approval + partial-state tracking + WORM audit**.
+
+- **A 不正解**: ガバナンス違反。 / Governance breach.
+- **C 不正解**: 越権、規制違反。 / Out-of-scope, breach.
+- **D 不正解**: 内部統制喪失。 / Loses controls.
+
+**参照 / Reference:** Multi-party authorization・recall workflow
+</details>
+
+---
+
 > **前のドメイン / Previous:** [`domain1_agent_architecture.md`](./domain1_agent_architecture.md) | **次のドメイン / Next:** [`domain3_claude_code_workflows.md`](./domain3_claude_code_workflows.md)
