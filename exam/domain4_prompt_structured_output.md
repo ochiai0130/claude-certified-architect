@@ -1,7 +1,7 @@
 # Domain 4: プロンプトエンジニアリングと構造化出力 / Prompt Engineering and Structured Output
 
 > 配点比率 / Weight: **20%**
-> 問題数 / Questions: **5**
+> 問題数 / Questions: **30**
 > 形式 / Format: 4択・単一選択 / Multiple choice (single answer)
 
 ## 出題範囲 / Scope

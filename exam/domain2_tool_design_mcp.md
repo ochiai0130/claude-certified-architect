@@ -1,7 +1,7 @@
 # Domain 2: ツール設計と MCP 統合 / Tool Design and MCP Integration
 
 > 配点比率 / Weight: **18%**
-> 問題数 / Questions: **5**
+> 問題数 / Questions: **30**
 > 形式 / Format: 4択・単一選択 / Multiple choice (single answer)
 
 ## 出題範囲 / Scope

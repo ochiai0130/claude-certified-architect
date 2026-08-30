@@ -46,6 +46,13 @@ For engineers deploying Claude in **business-critical domains** (finance, health
 
 - Index: [`exam/README.md`](./exam/README.md)
 
+## Claude Certified Architect — Professional (CCAR-P) Mock Exam
+
+The [`exam/professional/`](./exam/professional/) directory adds a mock exam for the **Professional tier** of the Architect track, covering all **seven domains** with 30 scenario-based questions each (**210 total**), bilingual with detailed explanations. Professional goes beyond Foundations by adding governance and risk, stakeholder communication and lifecycle, and developer enablement.
+
+- Index and blueprint: [`exam/professional/README.md`](./exam/professional/README.md)
+- **Note on sourcing:** the official CCAR-P exam guide is distributed inside the partner-only Skilljar portal. The domain list and weights used here were reconstructed by cross-checking multiple third-party exam-prep sources and are **not** verified against a primary Anthropic source — always confirm the current blueprint in the official guide.
+
 ## Free Anthropic Courses
 
 13 free courses & certificates from Anthropic Academy:

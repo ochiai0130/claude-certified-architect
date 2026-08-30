@@ -1,7 +1,7 @@
 # Domain 5: コンテキスト管理と信頼性 / Context Management and Reliability
 
 > 配点比率 / Weight: **15%**
-> 問題数 / Questions: **5**
+> 問題数 / Questions: **30**
 > 形式 / Format: 4択・単一選択 / Multiple choice (single answer)
 
 ## 出題範囲 / Scope

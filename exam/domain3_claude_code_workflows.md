@@ -1,7 +1,7 @@
 # Domain 3: Claude Code の設定とワークフロー / Claude Code Configuration and Workflows
 
 > 配点比率 / Weight: **20%**
-> 問題数 / Questions: **5**
+> 問題数 / Questions: **30**
 > 形式 / Format: 4択・単一選択 / Multiple choice (single answer)
 
 ## 出題範囲 / Scope
