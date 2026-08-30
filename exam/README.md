@@ -54,6 +54,12 @@ Recommended approach:
 4. Return to the relevant section of the main guide (`../guide_ja.md` / `../guide_en.MD`) for deeper study
 5. Scoring ≥80% per domain (24/30) consistently indicates solid advanced-level proficiency
 
+## 上位資格 / Professional tier
+
+Architect トラックの上位資格 `Claude Certified Architect — Professional` (CCAR-P) 向けの模擬問題集を [`professional/`](./professional/) に用意しています。全 7 ドメイン × 30 問 = 210 問。Foundations の 5 ドメインに加えて、**ガバナンス・リスク管理**、**ステークホルダー折衝とライフサイクル管理**、**開発者生産性と運用イネーブルメント** の 3 領域が加わります。
+
+A mock exam for the advanced tier, `Claude Certified Architect — Professional` (CCAR-P), is available in [`professional/`](./professional/): seven domains × 30 questions = 210. Beyond the Foundations five, it adds governance and risk, stakeholder communication and lifecycle, and developer enablement.
+
 ## 注意 / Disclaimer
 
 本模擬問題集は学習目的の**非公式**コンテンツです。Anthropic 公式の試験問題ではなく、公開ガイドの内容に基づき独自に作成しています。
