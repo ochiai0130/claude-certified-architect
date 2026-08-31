@@ -1,4 +1,4 @@
-# Domain 4: 評価と品質保証 / Evaluation
+# Domain 4: 評価・テスト・最適化 / Evaluation, Testing & Optimization
 
 > 配点比率 / Weight: **16%**
 > 問題数 / Questions: **30**

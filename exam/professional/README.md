@@ -6,15 +6,18 @@
 
 ---
 
-## ⚠️ 出典と非公式である旨 / Sourcing and disclaimer
+## 出典と、何が公式で何が非公式か / Sourcing: what is official and what is not
 
-**本ディレクトリの内容は学習目的の非公式教材です。Anthropic 公式の試験問題ではありません。**
+配点・ドメイン名・出題範囲は **Anthropic 発行の公式 Exam Guide（Version 1.0・Effective July 2026）の一次情報**です。以下の表とドメイン別の出題範囲は、その PDF の記載に基づいています。
 
-CCAR-P の**公式試験ガイド (PDF) は Claude Partner Network 限定の Skilljar ポータル内**で配布されており、一般公開されていません。以下に示すドメイン構成・配点は、**複数の第三者試験対策サイトで一致していた記述を突き合わせて再構成したもの**であり、Anthropic の一次情報で検証したものではありません。受験前には必ず**ポータル内の公式 Exam Guide で最新の配点と出題範囲を確認してください**。配点が改訂されていた場合、本ファイルの記述より公式ガイドが常に優先されます。
+- 公式 Exam Guide (PDF): [`Claude Certified Architect – Professional Exam Guide`](https://everpath-course-content.s3-accelerate.amazonaws.com/instructor/6nizmqk8tpzpfjvt6qmmav7rh/public/1783542810/Claude+Certified+Architect+%E2%80%93+Professional+Exam+Guide.pdf)
+- 配布元: Anthropic Partner Academy（Skilljar）。受験登録は Pearson VUE 経由
 
-**This is unofficial study material, not actual Anthropic exam content.**
+**一方で、収録されている 210 問はすべて学習目的の独自作成であり、公式の試験問題ではありません。** 実際の試験問題は Anthropic の機密情報であり、受験時に守秘義務契約（NDA）の対象になります。本問題集は公式ブループリントの各 objective に対して独自にシナリオを書き起こしたものです。
 
-The official CCAR-P exam guide (PDF) is distributed **inside the Claude Partner Network Skilljar portal** and is not public. The domain list and weights below were **reconstructed by cross-checking multiple third-party exam-prep sources** and have **not** been verified against a primary Anthropic source. Always confirm the current blueprint in the official Exam Guide in the portal before sitting the exam; where they differ, the official guide wins.
+The weights, domain names, and objectives below are transcribed from **Anthropic's official Exam Guide (Version 1.0, effective July 2026)** — a primary source. **The 210 questions themselves are independently authored study material and are not actual exam content**, which is Anthropic's confidential property and subject to an NDA at test time.
+
+> 公式ガイドは予告なく改訂されます / The guide is subject to change without notice. 受験前に最新版を確認してください。
 
 ---
 
@@ -46,7 +49,7 @@ The five Foundations domains persist in altered form, but the **three domains th
 | 1 | ソリューション設計とアーキテクチャ / Solution Design and Architecture | 17% | 11 | 30 | [`domain1_solution_design.md`](./domain1_solution_design.md) |
 | 2 | Claude モデル・プロンプト・コンテキスト工学 / Claude Models, Prompting and Context Engineering | 13% | 8 | 30 | [`domain2_models_prompting_context.md`](./domain2_models_prompting_context.md) |
 | 3 | 統合アーキテクチャ / Integration | **19%** | 12 | 30 | [`domain3_integration.md`](./domain3_integration.md) |
-| 4 | 評価と品質保証 / Evaluation | 16% | 10 | 30 | [`domain4_evaluation.md`](./domain4_evaluation.md) |
+| 4 | 評価・テスト・最適化 / Evaluation, Testing & Optimization | 16% | 10 | 30 | [`domain4_evaluation.md`](./domain4_evaluation.md) |
 | 5 | ガバナンス・安全性・リスク管理 / Governance, Safety and Risk Management | 14% | 9 | 30 | [`domain5_governance_risk.md`](./domain5_governance_risk.md) |
 | 6 | ステークホルダー折衝とライフサイクル管理 / Stakeholder Communication and Lifecycle Management | 14% | 9 | 30 | [`domain6_stakeholder_lifecycle.md`](./domain6_stakeholder_lifecycle.md) |
 | 7 | 開発者生産性と運用イネーブルメント / Developer Productivity and Operational Enablement | 7% | 4 | 30 | [`domain7_developer_enablement.md`](./domain7_developer_enablement.md) |
@@ -58,9 +61,74 @@ Weights span only 7%–19%, making this a **breadth exam**: depth in one domain 
 
 ---
 
+## ドメイン別の出題範囲 / Detailed objectives by domain（公式ガイドの記載）
+
+公式ガイドは各ドメインについて、候補者が遂行できることを期待される **objective** を列挙しています。試験問題はこれらの objective に対して作成されます。以下は公式の記載です。
+
+The official guide lists, per domain, the tasks a candidate is expected to perform; exam items are written against these objectives. The following is transcribed from the guide.
+
+**Domain 1: Solution Design & Architecture (17%)**
+- ビジネス課題を Claude ベースの AI ソリューションに翻訳する / Translate business problems into Claude-based AI solutions
+- 入力 → 処理 → 出力 → フィードバックループの端から端までのアーキテクチャを設計する / Design end-to-end architectures (input → processing → output → feedback loops)
+- 適切なアーキテクチャパターン（ワークフロー、エージェンティック、augmented LLM）を選択する / Select appropriate architectural patterns (workflow, agentic, augmented LLM)
+- マルチエージェントシステムとオーケストレーション戦略を設計する / Design multi-agent systems and orchestration strategies
+- 複雑な問題解決のための分解手法を適用する / Apply decomposition techniques for complex problem solving
+- ソリューションをビジネス価値の柱（効率化、変革、生産性、コスト、性能 SLA）に整合させる / Align solutions to business value pillars (efficiency, transformation, productivity, cost, performance SLAs)
+
+**Domain 2: Claude Models, Prompting & Context Engineering (13%)**
+- トレードオフに基づいて適切な Claude モデルを選択する / Select appropriate Claude models based on trade-offs
+- system プロンプト、テンプレート、ガードレールを設計する / Design system prompts, templates, and guardrails
+- プロンプト技法（zero-shot、few-shot、chain-of-thought）を適用する / Apply prompt engineering techniques (zero-shot, few-shot, chain-of-thought)
+- コンテキストウィンドウを最適化しトークン使用量を管理する / Optimize context windows and manage token usage
+- プロンプト再利用の戦略（キャッシュ、モジュール化、Skills）を実装する / Implement prompt reuse strategies (caching, modular prompts, Skills)
+
+**Domain 3: Integration (19%)**
+- ツール／エージェントの構成を capability bloat の観点で評価する / Evaluate tool/agent configuration for capability bloat
+- 認証・認可の要件を分析してセキュリティギャップを特定する / Analyze authentication and authorization requirements to identify security gaps
+- 精度とレイテンシのトレードオフを評価し、構成上の判断を根拠づける / Evaluate accuracy-latency trade-offs and justify configuration decisions
+- 大規模環境における可観測性の課題を分析し、監視戦略を選択する / Analyze observability challenges and select monitoring strategies at scale
+- 適切なチャンク分割とインデックス戦略を伴う RAG パイプラインを設計する / Design a RAG pipeline with appropriate chunking and indexing strategies
+- データの形とクエリのパターンに合わせた検索戦略を適用する / Apply retrieval strategies matched to data shape and query pattern
+- 接続プロトコルを評価し、適切な統合機構（MCP、API/CLI、エージェント間連携）を選択する / Evaluate connection protocols and select the appropriate integration mechanism (MCP, API/CLI, agent-to-agent)
+- 段階的な探索とモノリシックなコンテキスト戦略を比較評価する / Evaluate progressive discovery vs. monolithic context strategy
+
+**Domain 4: Evaluation, Testing & Optimization (16%)**
+- 評価指標（精度、レイテンシ、コスト、安全性、セキュリティ）を定義する / Define evaluation metrics (accuracy, latency, cost, safety, security)
+- 複数の方法論を組み合わせた評価データセットとテストフレームワークを設計する / Design evaluation datasets and test frameworks using mixed methodologies
+- A/B テストと反復的な改善を実施する / Conduct A/B testing and iterative improvements
+- システムの問題（プロンプトの失敗、ハルシネーション、モデルのミスマッチ）を診断する / Diagnose system issues (prompt failure, hallucinations, model mismatch)
+- トークン使用量、レイテンシ、コストと性能のトレードオフを最適化する / Optimize token usage, latency, and cost-performance trade-offs
+- ロギングと可観測性ツールでシステム性能を監視する / Monitor system performance using logging and observability tools
+
+**Domain 5: Governance, Safety & Risk Management (14%)**
+- ガードレールと安全性統制を実装する / Implement guardrails and safety controls
+- LLM システムのリスク・限界・失敗モードを特定する / Identify risks, limitations, and failure modes of LLM systems
+- human-in-the-loop の検証戦略を適用する / Apply human-in-the-loop validation strategies
+- 規制（GDPR、HIPAA、FedRAMP など）への準拠を確保する / Ensure compliance with regulations (e.g., GDPR, HIPAA, FedRAMP)
+- 倫理的な AI の考慮事項（バイアス、公平性、透明性）に対処する / Address ethical AI considerations (bias, fairness, transparency)
+
+**Domain 6: Stakeholder Communication & Lifecycle Management (14%)**
+- 構造化されたディスカバリーと要件収集を実施する / Conduct structured discovery and requirement gathering
+- アーキテクチャ上の決定とトレードオフを伝える / Communicate architectural decisions and trade-offs
+- ステークホルダーのフィードバックループと期待値の調整（SLA を含む）を管理する / Manage stakeholder feedback loops and expectation alignment (including SLAs)
+- アーキテクチャを文書化し、実装のガイダンスを提供する / Document architectures and provide implementation guidance
+- ライフサイクルの各フェーズ（ディスカバリー、設計、引き継ぎ、監視、反復）を支援する / Support lifecycle phases (discovery, design, handoff, monitoring, iteration)
+
+**Domain 7: Developer Productivity & Operational Enablement (7%)**
+- チーム向けに Claude のツールと環境（Claude Code など）を構成する / Configure Claude tools and environments for teams (e.g., Claude Code)
+- AI 支援ツールで開発者のワークフローを改善する / Improve developer workflows using AI-assisted tooling
+- デバッグと運用上の問題解決を支援する / Support debugging and operational issue resolution
+
+---
+
 ## 形式 / Format
 
-- **4 択・単一選択** / 4 options, single answer
+> **本番の出題形式について / About the live item format**
+> 公式ガイドによれば、本番は**多肢選択に加えて複数選択（複数の正答を選ぶ設問）も出題され、設問ごとに選ぶ数が明示されます**。本模擬セットは全 210 問が 4 択・単一選択なので、複数選択の練習は Developer セット（[`../developer/`](../developer/)、複数選択を約 20% 含む）で補ってください。
+>
+> Per the official guide, the live exam includes **multiple-response items as well as multiple-choice, and each item states how many responses to select**. All 210 questions here are 4-option single-answer, so practice multiple-response items with the Developer set ([`../developer/`](../developer/)), which includes about 20%.
+
+- **4 択・単一選択** / 4 options, single answer（本模擬セットの形式。本番の形式は上記を参照）
 - **解説付き** — 正解の理由と、各誤答が不適切な理由を記載 / Explanations covering the key and every distractor
 - **二言語併記** — 日本語と英語 / Bilingual (Japanese / English)
 - 各問は次のうち **2 つ以上** の上級者要素を含みます / Each question incorporates **two or more** of:
@@ -105,7 +173,7 @@ The most common Professional-level mistake is picking the **technically most sop
 | [1. ソリューション設計とアーキテクチャ / Solution Design and Architecture](./domain1_solution_design.md) | 17% |
 | [2. Claude モデル・プロンプト・コンテキスト工学 / Models, Prompting and Context Engineering](./domain2_models_prompting_context.md) | 13% |
 | [3. 統合アーキテクチャ / Integration](./domain3_integration.md) | 19% |
-| [4. 評価と品質保証 / Evaluation](./domain4_evaluation.md) | 16% |
+| [4. 評価・テスト・最適化 / Evaluation, Testing & Optimization](./domain4_evaluation.md) | 16% |
 | [5. ガバナンス・安全性・リスク管理 / Governance, Safety and Risk Management](./domain5_governance_risk.md) | 14% |
 | [6. ステークホルダー折衝とライフサイクル管理 / Stakeholder Communication and Lifecycle Management](./domain6_stakeholder_lifecycle.md) | 14% |
 | [7. 開発者生産性と運用イネーブルメント / Developer Productivity and Operational Enablement](./domain7_developer_enablement.md) | 7% |

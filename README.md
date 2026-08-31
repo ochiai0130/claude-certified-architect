@@ -51,7 +51,28 @@ For engineers deploying Claude in **business-critical domains** (finance, health
 The [`exam/professional/`](./exam/professional/) directory adds a mock exam for the **Professional tier** of the Architect track, covering all **seven domains** with 30 scenario-based questions each (**210 total**), bilingual with detailed explanations. Professional goes beyond Foundations by adding governance and risk, stakeholder communication and lifecycle, and developer enablement.
 
 - Index and blueprint: [`exam/professional/README.md`](./exam/professional/README.md)
-- **Note on sourcing:** the official CCAR-P exam guide is distributed inside the partner-only Skilljar portal. The domain list and weights used here were reconstructed by cross-checking multiple third-party exam-prep sources and are **not** verified against a primary Anthropic source — always confirm the current blueprint in the official guide.
+- **Note on sourcing:** the domain names, weights, and objectives are transcribed from Anthropic's [official CCAR-P Exam Guide](https://everpath-course-content.s3-accelerate.amazonaws.com/instructor/6nizmqk8tpzpfjvt6qmmav7rh/public/1783542810/Claude+Certified+Architect+%E2%80%93+Professional+Exam+Guide.pdf) (v1.0, effective July 2026). The 210 questions themselves are independently authored study material, not actual exam content.
+
+## Claude Certified Developer — Foundations (CCDV-F) Mock Exam
+
+The [`exam/developer/`](./exam/developer/) directory adds a mock exam for the **Developer** track — the certification for engineers who *build and ship* Claude applications, agents, and workflows, as distinct from the Architect track's design and organizational focus. It covers all **eight domains** and **25 sub-skills** with **240 questions** in total, allocated in proportion to the official weights so the question counts double as a study-time guide.
+
+- Index and blueprint: [`exam/developer/README.md`](./exam/developer/README.md)
+- Every question is tagged with its official sub-skill, so you can locate weak areas at sub-skill granularity.
+- Each domain is split into a **Foundations** section (the bulk, at the cognitive level of the real exam) and an **Advanced** section (regulatory constraints, scale, and tradeoffs).
+- About 20% are **multiple-response** items (five options, with the number to select stated), matching the official item format.
+- **Note on sourcing:** the domain names, weights, sub-skills, and objectives are transcribed from Anthropic's [official CCDV-F Exam Guide](https://everpath-course-content.s3-accelerate.amazonaws.com/instructor/6nizmqk8tpzpfjvt6qmmav7rh/public/1783542875/Claude+Certified+Developer+%E2%80%93+Foundations+Exam+Guide.pdf) (v1.0, effective July 2026). The 240 questions themselves are independently authored study material, not actual exam content.
+
+## The four Anthropic certifications
+
+| Credential | Track / tier | Items | Time | Pass | Fee | Mock exam here |
+|---|---|---|---|---|---|---|
+| Claude Certified Associate — Foundations | Associate | — | — | — | $99 | — |
+| **Claude Certified Developer — Foundations** (CCDV-F) | Developer | 53 | 120 min | 720 | $125 | [`exam/developer/`](./exam/developer/) — 240 questions |
+| **Claude Certified Architect — Foundations** (CCAR-F) | Architect, Foundations | — | — | 720 | $99 | [`exam/`](./exam/) — 150 questions |
+| **Claude Certified Architect — Professional** (CCAR-P) | Architect, Professional | 63 | 120 min | 720 | $175 | [`exam/professional/`](./exam/professional/) — 210 questions |
+
+The Developer track has only a Foundations tier; Architect has both Foundations and Professional.
 
 ## Free Anthropic Courses
 

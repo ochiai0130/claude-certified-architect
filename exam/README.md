@@ -54,11 +54,29 @@ Recommended approach:
 4. Return to the relevant section of the main guide (`../guide_ja.md` / `../guide_en.MD`) for deeper study
 5. Scoring ≥80% per domain (24/30) consistently indicates solid advanced-level proficiency
 
-## 上位資格 / Professional tier
+## 他の模擬試験セット / Other mock exam sets
 
-Architect トラックの上位資格 `Claude Certified Architect — Professional` (CCAR-P) 向けの模擬問題集を [`professional/`](./professional/) に用意しています。全 7 ドメイン × 30 問 = 210 問。Foundations の 5 ドメインに加えて、**ガバナンス・リスク管理**、**ステークホルダー折衝とライフサイクル管理**、**開発者生産性と運用イネーブルメント** の 3 領域が加わります。
+このリポジトリには 3 つの模擬試験セットがあります。Anthropic の認定は 4 資格構成で、Architect トラック（Foundations / Professional）と Developer トラック（Foundations のみ）に分かれます。
 
-A mock exam for the advanced tier, `Claude Certified Architect — Professional` (CCAR-P), is available in [`professional/`](./professional/): seven domains × 30 questions = 210. Beyond the Foundations five, it adds governance and risk, stakeholder communication and lifecycle, and developer enablement.
+This repository holds three mock exam sets. Anthropic's program has four credentials, split between the Architect track (Foundations and Professional) and the Developer track (Foundations only).
+
+| セット / Set | 対応資格 / Credential | ドメイン | 問数 | 配点の出典 / Weights from |
+|---|---|---|---|---|
+| **本セット** [`./`](./) | Claude Certified Architect — Foundations (CCAR-F) | 5 | 150 | 公開ガイド / public guide |
+| [`professional/`](./professional/) | Claude Certified Architect — Professional (CCAR-P) | 7 | 210 | **公式 Exam Guide v1.0**（一次情報）|
+| [`developer/`](./developer/) | Claude Certified Developer — Foundations (CCDV-F) | 8（25 サブスキル）| 240 | **公式 Exam Guide v1.0**（一次情報）|
+
+### 上位資格 / Professional tier
+
+Architect トラックの上位資格 `Claude Certified Architect — Professional` (CCAR-P) 向けの模擬問題集が [`professional/`](./professional/) にあります。全 7 ドメイン × 30 問 = 210 問。Foundations の 5 ドメインに加えて、**ガバナンス・安全性・リスク管理**、**ステークホルダー折衝とライフサイクル管理**、**開発者生産性と運用イネーブルメント** の 3 領域が加わります。
+
+A mock exam for the advanced tier, `Claude Certified Architect — Professional` (CCAR-P), is in [`professional/`](./professional/): seven domains × 30 questions = 210. Beyond the Foundations five, it adds governance/safety/risk, stakeholder communication and lifecycle, and developer enablement.
+
+### Developer トラック / Developer track
+
+`Claude Certified Developer — Foundations` (CCDV-F) 向けの模擬問題集が [`developer/`](./developer/) にあります。全 8 ドメイン・25 サブスキル、計 240 問。Architect が「設計できるか・運営できるか」を問うのに対し、Developer は **実装して本番に出せるか** を問います。公式配点に比例して問題数を配分しており、**Applications and Integration だけで全体の 33.1%（82 問）**を占めます。各問には公式サブスキルのタグが付き、約 20% が複数選択問題です。
+
+A mock exam for `Claude Certified Developer — Foundations` (CCDV-F) is in [`developer/`](./developer/): eight domains, 25 sub-skills, 240 questions. Where Architect asks whether you can design and own a system, Developer asks whether you can **build and ship** one. Question counts follow the official weights, so Applications and Integration alone accounts for 33.1% (82 questions). Every question carries its official sub-skill tag, and about 20% are multiple-response items.
 
 ## 注意 / Disclaimer
 
